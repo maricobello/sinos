@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { mean } from "../src/lib/quant/stats";
 import { buildForecast } from "../src/lib/market/forecast";
 import { bessArbitrage, euBattery, euBorders, globalLens, submarketSpreads } from "../src/lib/market/arbitrage";
 import { PLD_LIMITS, pldFromCmo, toDayMatrix } from "../src/lib/market/brazil";
@@ -20,7 +21,7 @@ describe("pipeline completo sobre dados simulados", () => {
     }
   });
 
-  it("previsão: LEAR + ACI + QRA + MC + HMM + GARCH", () => {
+  it("previsão: LEAR + ACI + QRA + MC + HMM + GARCH", async () => {
     const t0 = Date.now();
     const fc = buildForecast(pld, "SE", 7, 400);
     const ms = Date.now() - t0;
@@ -33,17 +34,27 @@ describe("pipeline completo sobre dados simulados", () => {
     expect(fc.paths.length).toBe(400);
     expect(ms).toBeLessThan(20_000);
 
-    const bess = bessArbitrage(fc);
+    // teto estrutural: nenhum dia previsto (LEAR) nem simulado (MRJD) acima da média permitida
+    for (let k = 0; k < 7; k++) {
+      expect(mean(fc.horizon.lear.slice(24 * k, 24 * k + 24))).toBeLessThanOrEqual(PLD_LIMITS.maxStructural + 0.01);
+      expect(fc.paths.every((p) => mean(p.slice(24 * k, 24 * k + 24)) <= PLD_LIMITS.maxStructural + 1e-6)).toBe(true);
+    }
+    expect(fc.backtest.qraCoverage90).toBeGreaterThan(0.5);
+
+    const bess = await bessArbitrage(fc);
     expect(bess.intrinsicRS).toBeGreaterThan(0);
-    expect(bess.perfectForesightRS).toBeGreaterThanOrEqual(bess.intrinsicRS - 1e-6);
+    // mesma curva e mesma distribuição: intrínseco ≤ com opcionalidade ≤ informação perfeita
+    expect(bess.lsmcRS).toBeGreaterThanOrEqual(bess.intrinsicRS - 1e-6);
+    expect(bess.perfectForesightRS).toBeGreaterThanOrEqual(bess.lsmcRS - 1e-6);
+    expect(bess.extrinsicRS).toBeLessThan(0.5 * bess.intrinsicRS);
     expect(bess.risk.cvar95).toBeGreaterThanOrEqual(bess.risk.var95 - 1e-6);
   });
 
-  it("spreads entre submercados, bateria europeia, fronteiras e lente global", () => {
+  it("spreads entre submercados, bateria europeia, fronteiras e lente global", async () => {
     const spreads = submarketSpreads(pld, 30);
     expect(spreads).toHaveLength(6);
     const eu = simEu(7);
-    const bat = euBattery(eu);
+    const bat = await euBattery(eu);
     expect(bat.length).toBeGreaterThan(5);
     expect(bat[0].bessEurPerMWDay).toBeGreaterThan(0);
     expect(euBorders(eu).length).toBeGreaterThan(3);

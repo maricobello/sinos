@@ -26,6 +26,8 @@ export interface LearOptions {
   nLambda?: number;
   /** "lars" (padrão, caminho exato como o LassoLarsIC do epftoolbox) ou "cd" (descida coordenada). */
   solver?: "lars" | "cd";
+  /** Regra aplicada a cada dia previsto (ex.: teto estrutural do PLD), antes de virar defasagem. */
+  post?: (day: number[]) => number[];
 }
 
 const HOURS = 24;
@@ -76,6 +78,7 @@ export function learForecast(
   days: number[][],
   nextDows: number[],
   clip?: [number, number],
+  post?: (day: number[]) => number[],
 ): number[][] {
   const maxLag = Math.max(...model.lags);
   const hist = days.slice(-maxLag).map((row) => row.map((p) => asinhFwd(model.scaler, p)));
@@ -86,6 +89,7 @@ export function learForecast(
     const tRow = model.fits.map((fit) => predictLinear(fit, x));
     let pRow = tRow.map((v) => asinhInv(model.scaler, v));
     if (clip) pRow = pRow.map((p) => Math.min(clip[1], Math.max(clip[0], p)));
+    if (post) pRow = post(pRow);
     out.push(pRow);
     hist.push(pRow.map((p) => asinhFwd(model.scaler, p)));
   }
@@ -116,7 +120,7 @@ export function learBacktest(days: number[][], dows: number[], nTest: number, op
     const trainDays = days.slice(0, d);
     const trainDows = dows.slice(0, d);
     const model = learFit(trainDays, trainDows, opts);
-    res.forecasts.push(learForecast(model, trainDays, [dows[d]], opts.clip)[0]);
+    res.forecasts.push(learForecast(model, trainDays, [dows[d]], opts.clip, opts.post)[0]);
     res.naive.push(naiveForecast(trainDays, dows[d]));
     res.actuals.push(days[d].slice());
     res.dayIndex.push(d);

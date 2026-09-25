@@ -9,7 +9,7 @@ import { mean, mulberry32, quantile, round } from "../quant/stats";
 import { asinhFwd, asinhInv, fitAsinh } from "../quant/transforms";
 import { addDays } from "../sources/time";
 import type { Sub, SubPanel } from "../sources/types";
-import { PLD_LIMITS, toDayMatrix } from "./brazil";
+import { capDailyMean, capDailyMeans, PLD_LIMITS, toDayMatrix } from "./brazil";
 
 export const QRA_TAUS = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95];
 
@@ -37,7 +37,9 @@ export interface ForecastResult {
     rmse: number;
     dm: { statistic: number; pValue: number };
     aci: { coverage: number; halfWidth: number; alpha: number; kupiecP: number };
+    /** CRPS e cobertura 5–95% do QRA fora da amostra (ajuste na 1ª metade do backtest). */
     qraCrps: number;
+    qraCoverage90: number;
   };
   regime: {
     labels: string[];
@@ -69,8 +71,9 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
 
   const clip: [number, number] = [PLD_LIMITS.min, PLD_LIMITS.maxHourly];
   const calibrationDays = Math.min(90, dm.rows.length - 1);
-  const nTest = Math.min(14, dm.rows.length - 22);
-  const bt = learBacktest(dm.rows, dm.dows, nTest, { calibrationDays, clip });
+  const nTest = Math.max(8, Math.min(28, dm.rows.length - 22));
+  // piso/teto horário (clip) e teto estrutural na média do dia (post) — a mesma regra do PLD
+  const bt = learBacktest(dm.rows, dm.dows, nTest, { calibrationDays, clip, post: capDailyMean });
   const act = bt.actuals.flat();
   const fL = bt.forecasts.flat();
   const fN = bt.naive.flat();
@@ -79,18 +82,24 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
     bt.actuals.map((a, d) => mae(a, bt.naive[d])),
   );
   const resid = act.map((a, i) => a - fL[i]);
-  const aci = adaptiveConformal(resid, 0.1, 0.01, 168);
-  const evaluated = Math.max(1, resid.length - Math.min(24, Math.floor(resid.length / 3)));
-  const kup = kupiec(Math.round((1 - aci.empiricalCoverage) * evaluated), evaluated, 0.1);
+  // day-ahead: as 24 horas saem juntas ⇒ ACI em blocos de 24 h (sem informação do próprio dia)
+  const aci = adaptiveConformal(resid, 0.1, 0.01, 168, 24);
+  const kup = kupiec(aci.violations, Math.max(1, aci.evaluated), 0.1);
+  // QRA avaliado fora da amostra: ajusta na 1ª metade dos dias do backtest, mede na 2ª
+  const cut = 24 * Math.floor(nTest / 2);
+  const qraCal = fitQRA(fL.slice(0, cut).map((f, i) => [f, fN[i]]), act.slice(0, cut), QRA_TAUS);
+  const oos = act.slice(cut).map((a, j) => ({ a, q: predictQRA(qraCal, [fL[cut + j], fN[cut + j]]) }));
+  const qraCrps = mean(oos.map(({ a, q }) => crpsFromQuantiles(a, q, QRA_TAUS)));
+  const qraCoverage90 = mean(oos.map(({ a, q }) => (a >= q[0] && a <= q[q.length - 1] ? 1 : 0)));
+  // modelo operacional: todos os dias do backtest
   const qra = fitQRA(fL.map((f, i) => [f, fN[i]]), act, QRA_TAUS);
-  const qraCrps = mean(act.map((a, i) => crpsFromQuantiles(a, predictQRA(qra, [fL[i], fN[i]]), QRA_TAUS)));
 
   // ---- previsão final
   const model = learFit(dm.rows, dm.dows, { calibrationDays, clip });
   const lastDate = dm.dates[dm.dates.length - 1];
   const futureDates = Array.from({ length: horizonDays }, (_, k) => addDays(lastDate, k + 1));
   const futureDows = futureDates.map((d) => new Date(`${d}T12:00:00Z`).getUTCDay());
-  const fut = learForecast(model, dm.rows, futureDows, clip);
+  const fut = learForecast(model, dm.rows, futureDows, clip, capDailyMean);
   const extended = [...dm.rows, ...fut];
   const naiveFut = futureDows.map((dow, k) => naiveForecast(extended.slice(0, dm.rows.length + k), dow));
   const qraNextDay = fut[0].map((f, h) => predictQRA(qra, [f, naiveFut[0][h]]).map(clipPld));
@@ -121,7 +130,8 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
     };
     const center = learFlat.map((p) => asinhFwd(scaler, p));
     const devPaths = simulateMRJD({ ...params, mu: 0 }, 0, center.length, nPaths, mulberry32(20260925));
-    paths = devPaths.map((d) => d.map((x, t) => clipPld(asinhInv(scaler, center[t] + x))));
+    // cada trajetória obedece à regra completa do PLD: piso/teto horário e teto estrutural diário
+    paths = devPaths.map((d) => capDailyMeans(d.map((x, t) => clipPld(asinhInv(scaler, center[t] + x)))));
   } catch (e) {
     warnings.push(`MRJD indisponível: ${e instanceof Error ? e.message : e}`);
     paths = [learFlat.slice()];
@@ -216,6 +226,7 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
       dm: { statistic: dmTest.statistic, pValue: dmTest.pValue },
       aci: { coverage: aci.empiricalCoverage, halfWidth: aci.halfWidth, alpha: aci.alphaFinal, kupiecP: kup.pValue },
       qraCrps,
+      qraCoverage90,
     },
     regime,
     garch,

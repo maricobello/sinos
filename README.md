@@ -61,13 +61,27 @@ mostra — o auditor exibe os dois na tela **Agente auditor**.
 | GARCH(1,1) | Bollerslev (1986) | [arch](https://github.com/bashtage/arch) |
 | ADF, Engle–Granger, meia-vida | MacKinnon (2010); Engle & Granger (1987) | statsmodels |
 | Diebold–Mariano, Kupiec, CRPS | DM (1995), HLN (1997), Gneiting & Raftery (2007) | epftoolbox |
-| Armazenamento: DP + LSMC | Longstaff & Schwartz (2001); Boogert & de Jong (2008) | QuantLib |
+| Armazenamento: LP/MILP exato (HiGHS) + LSMC, rolling intrinsic no D+1 | Huangfu & Hall (2018); Longstaff & Schwartz (2001); Boogert & de Jong (2008) | [ERGO-Code/HiGHS](https://github.com/ERGO-Code/HiGHS), QuantLib |
 | CVaR / Expected Shortfall | Rockafellar & Uryasev (2000) | — |
 
-`npm test` roda 33 testes: recuperação de parâmetros em dados simulados (LASSO/LARS, HMM, GARCH, MRJD,
+`npm test` roda 44 testes: recuperação de parâmetros em dados simulados (LASSO/LARS, HMM, GARCH, MRJD,
 regressão quantílica), valores críticos de MacKinnon, cobertura do conformal, DP contra força bruta,
 LEAR superando o benchmark ingênuo com Diebold–Mariano significativo, contratos de payload de cada API
 e o caminho completo previsão → arbitragem.
+
+### Auditoria matemática (set/2026)
+
+Todos os modelos foram conferidos contra implementações de referência (scikit-learn, statsmodels, arch,
+hmmlearn, scipy): LARS/LASSO, asinh, ADF/Engle–Granger, GARCH, DM, Kupiec e as distribuições batem até
+1e-9. Correções aplicadas a partir dessa auditoria:
+- intrínseco da bateria calculado na curva E[preço] (o LEAR em asinh estima a mediana) — a
+  "opcionalidade" deixou de ser inflada; teto de informação perfeita por LP exato em cada trajetória;
+- teto estrutural do PLD (média diária) aplicado às previsões e às trajetórias de Monte Carlo;
+- grade de SoC que representa a potência nominal de carga e descarga (erro < 1%);
+- ACI avaliado em blocos de 24 h (sem informação do próprio dia) e quantil conformal por estatística de ordem;
+- CRPS pela regra do trapézio e QRA avaliado fora da amostra (com cobertura 5–95%);
+- HMM com vários pontos de partida (evita ótimos locais) e emissões escalonadas em log;
+- valor crítico de 1% de Engle–Granger (MacKinnon 2010) corrigido; dia de entrega europeu em CET/CEST.
 
 ## Agente auditor
 

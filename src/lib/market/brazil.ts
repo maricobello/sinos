@@ -77,12 +77,31 @@ export function latestBySub(panel: SubPanel, atOrBefore = Date.now()) {
 }
 
 /**
+ * Teto estrutural (REN ANEEL 1.051/2022; Regras de Comercialização, módulo PLD): se a
+ * média dos 24 valores horários do dia passar do PLD_max_estrutural, a curva é ajustada
+ * de forma uniforme e proporcional acima do piso até a média ficar igual ao teto,
+ * mantendo o perfil horário. Vale para PLD observado, estimado e previsto.
+ */
+export function capDailyMean(day: number[]): number[] {
+  const { min, maxStructural } = PLD_LIMITS;
+  const m = day.reduce((a, b) => a + b, 0) / day.length;
+  if (m <= maxStructural) return day;
+  const k = (maxStructural - min) / (m - min);
+  return day.map((v) => min + (v - min) * k);
+}
+
+/** Aplica o teto estrutural a uma série horária alinhada a dias completos (24 h cada). */
+export function capDailyMeans(hourly: number[]): number[] {
+  const out: number[] = [];
+  for (let k = 0; k + 24 <= hourly.length; k += 24) out.push(...capDailyMean(hourly.slice(k, k + 24)));
+  return out.concat(hourly.slice(out.length));
+}
+
+/**
  * PLD estimado a partir do CMO (DESSEM) pela regra de formação da ANEEL:
  *  1) cada hora limitada ao piso (PLD_min) e ao teto horário (PLD_max_horário);
- *  2) se a média do dia (24 h, BRT) passar do PLD_max_estrutural, a curva é ajustada
- *     de forma uniforme e proporcional acima do piso até a média ficar igual ao teto
- *     estrutural, mantendo o perfil horário (REN ANEEL 1.051/2022; Regras de
- *     Comercialização, módulo PLD). Dias incompletos só recebem o passo 1.
+ *  2) teto estrutural na média de cada dia completo (24 h, BRT) — capDailyMean.
+ * Dias incompletos só recebem o passo 1.
  */
 export function pldFromCmo(cmo: SubPanel): SubPanel {
   const values = Object.fromEntries(
@@ -93,16 +112,13 @@ export function pldFromCmo(cmo: SubPanel): SubPanel {
     const d = brtDate(t);
     days.set(d, [...(days.get(d) ?? []), i]);
   });
-  const { min, maxStructural } = PLD_LIMITS;
   for (const idx of days.values()) {
     if (idx.length !== 24) continue;
     for (const s of SUBS) {
       const day = idx.map((i) => values[s][i]);
       if (day.some((v) => v === null)) continue;
-      const mean = (day as number[]).reduce((a, b) => a + b, 0) / 24;
-      if (mean <= maxStructural) continue;
-      const k = (maxStructural - min) / (mean - min);
-      idx.forEach((i) => (values[s][i] = min + (values[s][i]! - min) * k));
+      const capped = capDailyMean(day as number[]);
+      idx.forEach((i, h) => (values[s][i] = capped[h]));
     }
   }
   return { ts: cmo.ts, unit: "R$/MWh", values };

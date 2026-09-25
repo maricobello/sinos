@@ -90,7 +90,7 @@ export default function PrevisaoPage() {
         <Stat label="rMAE vs ingênuo semanal" value={num(bt?.rmae, 3)} delta={bt ? (bt.rmae < 1 ? "supera o benchmark" : "não supera o benchmark") : null} deltaGood={bt ? bt.rmae < 1 : null} />
         <Stat label="Teste Diebold–Mariano" value={bt ? `p = ${num(bt.dm.pValue, 3)}` : "—"} delta={bt ? (bt.dm.pValue < 0.05 ? "ganho significativo (5%)" : "sem significância a 5%") : null} deltaGood={bt ? bt.dm.pValue < 0.05 : null} />
         <Stat label="Cobertura ACI (alvo 90%)" value={pct(bt ? 100 * bt.aci.coverage : null, 1)} hint={bt ? `Kupiec p = ${num(bt.aci.kupiecP, 3)} · ±${brl(bt.aci.halfWidth, 0)}` : undefined} />
-        <Stat label="CRPS (QRA)" value={num(bt?.qraCrps, 2)} unit="R$/MWh" hint="menor é melhor" />
+        <Stat label="CRPS QRA (fora da amostra)" value={num(bt?.qraCrps, 2)} unit="R$/MWh" hint={bt ? `cobertura 5–95%: ${pct(100 * bt.qraCoverage90, 0)} (alvo 90%) · menor é melhor` : undefined} />
         <Stat label="sMAPE" value={pct(bt?.smape, 1)} hint={bt ? `RMSE ${num(bt.rmse, 1)}` : undefined} />
       </div>
 
