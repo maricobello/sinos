@@ -90,7 +90,8 @@ e o caminho completo previsão → arbitragem.
    Dá para adicionar depois e fazer redeploy.
 4. Deploy. A região das funções é `gru1` (São Paulo), perto da CCEE e do ONS.
 5. Abra **Agente auditor → Rodar auditoria** para a primeira execução.
-6. (Opcional) Aqui no GitHub: variável `SIN_OS_URL` e segredo `CRON_SECRET` para auditoria a cada 15 min.
+6. A auditoria a cada 15 min roda pelo GitHub Actions contra a produção. Se criar `CRON_SECRET` na Vercel,
+   cadastre o mesmo valor como segredo `CRON_SECRET` no GitHub (e `SIN_OS_URL` se mudar o domínio).
 
 ## Firebase (Firestore) — passo a passo
 
