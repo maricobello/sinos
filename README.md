@@ -64,10 +64,43 @@ mostra — o auditor exibe os dois na tela **Agente auditor**.
 | Armazenamento: LP/MILP exato (HiGHS) + LSMC, rolling intrinsic no D+1 | Huangfu & Hall (2018); Longstaff & Schwartz (2001); Boogert & de Jong (2008) | [ERGO-Code/HiGHS](https://github.com/ERGO-Code/HiGHS), QuantLib |
 | CVaR / Expected Shortfall | Rockafellar & Uryasev (2000) | — |
 
-`npm test` roda 44 testes: recuperação de parâmetros em dados simulados (LASSO/LARS, HMM, GARCH, MRJD,
+`npm test` roda 45 testes: recuperação de parâmetros em dados simulados (LASSO/LARS, HMM, GARCH, MRJD,
 regressão quantílica), valores críticos de MacKinnon, cobertura do conformal, DP contra força bruta,
 LEAR superando o benchmark ingênuo com Diebold–Mariano significativo, contratos de payload de cada API
 e o caminho completo previsão → arbitragem.
+
+### Validação em dados reais (`npm run eval:real`)
+
+O comando baixa do bucket público do ONS o CMO semi-horário (2024–2026) e o CMO semanal do DECOMP,
+converte em PLD pela regra da ANEEL e roda duas avaliações fora da amostra, sem olhar o futuro:
+
+**1. Variantes do LEAR** — 87 dias (28/06–25/09/2026, sem os dias ausentes na fonte), MAE em R$/MWh,
+p-valor de Diebold–Mariano contra a configuração anterior:
+
+| Variante | SE | S | NE | N |
+|---|---|---|---|---|
+| asinh global, janela 90 d (anterior) | 30,79 | 33,25 | 28,44 | 32,05 |
+| **asinh por hora (epftoolbox) — adotada** | **29,72** (p=0,02) | **32,22** (p=0,04) | **28,08** (p=0,21) | **30,90** (p=0,02) |
+| ensemble de janelas 56/84/182/364 d | 29,72 (p=0,08) | 33,21 | 28,41 | 31,83 |
+| + CMO semanal do DECOMP (exógena) | 30,84 | 33,15 (p=0,02) | 28,33 | 32,35 |
+| ingênuo semanal (referência) | 32,02 | 33,36 | 30,67 | 35,28 |
+
+Ensemble de janelas e CMO semanal não trouxeram ganho consistente no D+1 e ficaram de fora. Em
+janelas curtas (ex.: 10 dias) o ingênuo pode ganhar — só amostras longas sustentam conclusões.
+
+**2. Calibração da incerteza** — a previsão completa rodada em 20 datas passadas só com os dados
+disponíveis em cada uma; cobertura das faixas contra o PLD realizado (alvo 90%):
+
+| Horizonte | D+1 | D+2 | D+3 | D+4 | D+5 | D+6 | D+7 |
+|---|---|---|---|---|---|---|---|
+| Banda conformal (SE) | 0,90 | 0,92 | 0,91 | 0,90 | 0,89 | 0,90 | 0,91 |
+| Monte Carlo 5–95% (SE) | 0,90 | 0,89 | 0,90 | 0,91 | 0,89 | 0,90 | 0,89 |
+| Banda conformal (N) | 0,91 | 0,91 | 0,91 | 0,91 | 0,91 | 0,90 | 0,91 |
+| Monte Carlo 5–95% (N) | 0,91 | 0,90 | 0,89 | 0,91 | 0,89 | 0,86 | 0,89 |
+
+Para chegar aí: o erro de cada horizonte é medido num backtest multi-horizonte (em SE o MAE sobe de
+~38 R$/MWh no D+1 para ~61 no D+7) e alarga a banda na proporção medida; o Monte Carlo (MRJD) é
+calibrado nos erros reais do LEAR, com a largura 5–95% casada com a dos resíduos.
 
 ### Auditoria matemática (set/2026)
 
@@ -81,6 +114,8 @@ hmmlearn, scipy): LARS/LASSO, asinh, ADF/Engle–Granger, GARCH, DM, Kupiec e as
 - ACI avaliado em blocos de 24 h (sem informação do próprio dia) e quantil conformal por estatística de ordem;
 - CRPS pela regra do trapézio e QRA avaliado fora da amostra (com cobertura 5–95%);
 - HMM com vários pontos de partida (evita ótimos locais) e emissões escalonadas em log;
+- dias inteiros ausentes no arquivo do ONS (acontece) preenchidos por interpolação (até 3 dias) e
+  excluídos das métricas — antes a previsão caía por falta de histórico contíguo;
 - valor crítico de 1% de Engle–Granger (MacKinnon 2010) corrigido; dia de entrega europeu em CET/CEST.
 
 ## Agente auditor
@@ -152,6 +187,7 @@ npm install
 cp .env.example .env.local   # opcional
 npm run dev                  # http://localhost:3000
 npm test && npm run lint && npm run typecheck && npm run build
+npm run eval:real            # avaliação em dados reais do ONS (baixa ~7 MB; alguns minutos)
 DATA_MODE=demo npm run dev   # tudo simulado (sem internet)
 ```
 

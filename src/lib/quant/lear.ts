@@ -155,6 +155,8 @@ export interface BacktestResult {
   naive: number[][];
   actuals: number[][];
   dayIndex: number[];
+  /** Com `horizon` > 1: previsões recursivas de cada origem para os dias d, d+1, … (até o fim da amostra). */
+  multi: number[][][];
 }
 
 /**
@@ -162,13 +164,16 @@ export interface BacktestResult {
  * Retorna previsões LEAR e ingênuas para os últimos `nTest` dias. Com `windows`, usa o
  * ensemble de janelas; com `exog`, a linha do dia previsto (conhecida na véspera).
  */
-export function learBacktest(days: number[][], dows: number[], nTest: number, opts: LearOptions = {}): BacktestResult {
-  const res: BacktestResult = { forecasts: [], naive: [], actuals: [], dayIndex: [] };
+export function learBacktest(days: number[][], dows: number[], nTest: number, opts: LearOptions & { horizon?: number } = {}): BacktestResult {
+  const res: BacktestResult = { forecasts: [], naive: [], actuals: [], dayIndex: [], multi: [] };
+  const H = Math.max(1, opts.horizon ?? 1);
   for (let d = days.length - nTest; d < days.length; d++) {
     const trainDays = days.slice(0, d);
     const trainDows = dows.slice(0, d);
     const models = opts.windows ? learFitEnsemble(trainDays, trainDows, opts) : [learFit(trainDays, trainDows, opts)];
-    res.forecasts.push(learForecast(models, trainDays, [dows[d]], opts.clip, opts.post, opts.exog)[0]);
+    const path = learForecast(models, trainDays, dows.slice(d, Math.min(days.length, d + H)), opts.clip, opts.post, opts.exog);
+    res.forecasts.push(path[0]);
+    res.multi.push(path);
     res.naive.push(naiveForecast(trainDays, dows[d]));
     res.actuals.push(days[d].slice());
     res.dayIndex.push(d);

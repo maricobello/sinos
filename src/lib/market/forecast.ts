@@ -40,6 +40,8 @@ export interface ForecastResult {
     /** CRPS e cobertura 5–95% do QRA fora da amostra (ajuste na 1ª metade do backtest). */
     qraCrps: number;
     qraCoverage90: number;
+    /** Erro fora da amostra por horizonte (D+1…D+7) e o fator de alargamento da banda. */
+    horizonErrors: { day: number; mae: number | null; n: number; spread: number }[];
   };
   regime: {
     labels: string[];
@@ -52,7 +54,7 @@ export interface ForecastResult {
     recentPath: number[];
   } | null;
   garch: { dailyVolPct: number; forecastVolPct: number[]; persistence: number; halfLifeDays: number; alpha: number; beta: number; n: number } | null;
-  mrjd: { kappaPerHour: number; halfLifeHours: number; sigma: number; jumpsPerDay: number; jumpMean: number; jumpSd: number } | null;
+  mrjd: { kappaPerHour: number; halfLifeHours: number; sigma: number; jumpsPerDay: number; jumpMean: number; jumpSd: number; calibratedOn: string } | null;
   lear: { activeFeatures: number; nTrain: number; calibrationDays: number };
   warnings: string[];
 }
@@ -72,16 +74,39 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
   const clip: [number, number] = [PLD_LIMITS.min, PLD_LIMITS.maxHourly];
   const calibrationDays = Math.min(90, dm.rows.length - 1);
   const nTest = Math.max(8, Math.min(28, dm.rows.length - 22));
-  // piso/teto horário (clip) e teto estrutural na média do dia (post) — a mesma regra do PLD
-  // configuração do LEAR em produção (a troca só entra após validação em dados reais)
-  const learOpts = { calibrationDays, clip, post: capDailyMean, scaling: "global" as const };
-  const btAll = learBacktest(dm.rows, dm.dows, nTest, learOpts);
+  // piso/teto horário (clip) e teto estrutural na média do dia (post) — a mesma regra do PLD.
+  // Escalonamento asinh por hora (epftoolbox): em 87 dias reais (jun–set/2026) reduziu o MAE
+  // nos 4 submercados, com DM significativo a 5% em SE, S e N. Ensemble de janelas e CMO
+  // semanal do DECOMP como exógena não trouxeram ganho consistente e ficaram de fora.
+  const learOpts = { calibrationDays, clip, post: capDailyMean, scaling: "hourly" as const };
+  // backtest multi-horizonte: cada origem prevê D+1…D+H, para medir o erro por horizonte
+  const btAll = learBacktest(dm.rows, dm.dows, nTest, { ...learOpts, horizon: horizonDays });
   // dias interpolados (ausentes na fonte) não são "observados": ficam fora das métricas
   const imputed = new Set(dm.imputed);
   const keep = btAll.dayIndex.map((d) => !imputed.has(dm.dates[d]));
   const pick = <T,>(a: T[]) => a.filter((_, i) => keep[i]);
   const bt = { forecasts: pick(btAll.forecasts), naive: pick(btAll.naive), actuals: pick(btAll.actuals), dayIndex: pick(btAll.dayIndex) };
   if (dm.imputed.length) warnings.push(`${dm.imputed.length} dia(s) ausente(s) na fonte preenchido(s) por interpolação: ${dm.imputed.slice(-5).join(", ")}`);
+
+  // erros por horizonte (k = 0 é D+1): só dias observados de verdade
+  const errByH: number[][] = Array.from({ length: horizonDays }, () => []);
+  btAll.multi.forEach((path, i) => {
+    const o = btAll.dayIndex[i];
+    path.forEach((f, k) => {
+      const d = o + k;
+      if (d >= dm.rows.length || imputed.has(dm.dates[d])) return;
+      dm.rows[d].forEach((a, h) => errByH[k].push(a - f[h]));
+    });
+  });
+  // razão de dispersão D+k / D+1 (quantil 90% de |erro|), monotônica; poucos dados ⇒ √k
+  const q90 = (e: number[]) => quantile(e.map(Math.abs), 0.9);
+  const growth: number[] = [];
+  errByH.forEach((e, k) => {
+    const prev = growth[k - 1] ?? 1;
+    const r = k === 0 ? 1 : e.length >= 24 * 5 && errByH[0].length ? q90(e) / q90(errByH[0]) : prev * Math.sqrt((k + 1) / k);
+    growth.push(Math.max(prev, Number.isFinite(r) ? r : prev));
+  });
+  const horizonErrors = errByH.map((e, k) => ({ day: k + 1, mae: e.length ? mean(e.map(Math.abs)) : null, n: e.length / 24, spread: growth[k] }));
   const act = bt.actuals.flat();
   const fL = bt.forecasts.flat();
   const fN = bt.naive.flat();
@@ -114,19 +139,27 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
 
   const hTs = futureDates.flatMap((d) => Array.from({ length: 24 }, (_, h) => Date.parse(`${d}T${String(h).padStart(2, "0")}:00:00-03:00`)));
   const learFlat = fut.flat();
-  const aciLo = learFlat.map((f, i) => clipPld(f - aci.halfWidth * Math.sqrt(1 + Math.floor(i / 24))));
-  const aciHi = learFlat.map((f, i) => clipPld(f + aci.halfWidth * Math.sqrt(1 + Math.floor(i / 24))));
+  // banda conformal de D+1 (ACI) alargada pelo crescimento MEDIDO do erro em cada horizonte
+  const aciLo = learFlat.map((f, i) => clipPld(f - aci.halfWidth * growth[Math.floor(i / 24)]));
+  const aciHi = learFlat.map((f, i) => clipPld(f + aci.halfWidth * growth[Math.floor(i / 24)]));
 
-  // ---- MRJD sobre desvios da sazonalidade (espaço asinh) → Monte Carlo em torno do LEAR
+  // ---- MRJD calibrado nos ERROS do LEAR (espaço asinh) → Monte Carlo em torno do LEAR.
+  // Cenários com a dispersão real da previsão; a dispersão por horizonte segue o backtest.
   const recent = dm.rows.slice(-60).flat();
   const scaler = fitAsinh(recent);
   const y = recent.map((p) => asinhFwd(scaler, p));
+  const residAsinh = bt.actuals.flatMap((a, d) => a.map((v, h) => asinhFwd(scaler, v) - asinhFwd(scaler, bt.forecasts[d][h])));
   let mrjd: ForecastResult["mrjd"] = null;
   let paths: number[][] = [];
   try {
-    const seas = fitSeasonality(y);
-    const dev = y.map((v, t) => v - seas.predict(t));
-    const params = calibrateMRJD(dev);
+    let params = residAsinh.length >= 24 * 10 ? calibrateMRJD(residAsinh) : null;
+    let calibratedOn: "resíduos do LEAR" | "desvios sazonais" = "resíduos do LEAR";
+    if (!params || !Number.isFinite(params.kappa) || params.kappa <= 0 || params.sigma <= 0) {
+      const seas = fitSeasonality(y);
+      params = calibrateMRJD(y.map((v, t) => v - seas.predict(t)));
+      calibratedOn = "desvios sazonais";
+      warnings.push("MRJD calibrado em desvios sazonais (resíduos do LEAR insuficientes ou degenerados)");
+    }
     if (!Number.isFinite(params.kappa) || params.sigma <= 0) throw new Error("MRJD degenerado");
     mrjd = {
       kappaPerHour: params.kappa,
@@ -135,11 +168,23 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
       jumpsPerDay: params.lambda * 24,
       jumpMean: params.jumpMean,
       jumpSd: params.jumpSd,
+      calibratedOn,
     };
     const center = learFlat.map((p) => asinhFwd(scaler, p));
-    const devPaths = simulateMRJD({ ...params, mu: 0 }, 0, center.length, nPaths, mulberry32(20260925));
+    // aquecimento de 72 h: começa na distribuição estacionária (o erro de D+1 não é zero na 1ª hora)
+    const burn = 72;
+    const devPaths = simulateMRJD({ ...params, mu: 0 }, 0, center.length + burn, nPaths, mulberry32(20260925)).map((d) => d.slice(burn));
+    // casamento de quantis: a faixa 5–95% simulada em D+1 passa a ter a largura da faixa
+    // 5–95% dos erros reais do LEAR (o MRJD sozinho superestimava a dispersão)
+    let c = 1;
+    if (calibratedOn === "resíduos do LEAR") {
+      const sim = devPaths.flatMap((d) => d.slice(0, 24));
+      const wSim = quantile(sim, 0.95) - quantile(sim, 0.05);
+      const wEmp = quantile(residAsinh, 0.95) - quantile(residAsinh, 0.05);
+      if (wSim > 0 && wEmp > 0) c = Math.min(3, Math.max(0.3, wEmp / wSim));
+    }
     // cada trajetória obedece à regra completa do PLD: piso/teto horário e teto estrutural diário
-    paths = devPaths.map((d) => capDailyMeans(d.map((x, t) => clipPld(asinhInv(scaler, center[t] + x)))));
+    paths = devPaths.map((d) => capDailyMeans(d.map((x, t) => clipPld(asinhInv(scaler, center[t] + c * x * growth[Math.floor(t / 24)])))));
   } catch (e) {
     warnings.push(`MRJD indisponível: ${e instanceof Error ? e.message : e}`);
     paths = [learFlat.slice()];
@@ -235,6 +280,7 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
       aci: { coverage: aci.empiricalCoverage, halfWidth: aci.halfWidth, alpha: aci.alphaFinal, kupiecP: kup.pValue },
       qraCrps,
       qraCoverage90,
+      horizonErrors,
     },
     regime,
     garch,
