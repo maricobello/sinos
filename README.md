@@ -100,6 +100,12 @@ Coleções criadas: `audit_runs`, `agent_reports`, `pld_days` (histórico própr
 também usado como fallback se a CCEE cair). O plano gratuito (Spark) cobre com folga: 50 mil leituras e
 20 mil gravações por dia, 1 GiB de armazenamento; auditoria a cada 15 min grava ~100 documentos/dia.
 
+### Firebase MCP (Claude Code)
+
+O repositório traz `.mcp.json` com o servidor MCP oficial do Firebase (`firebase-tools mcp`).
+Na sua máquina, rode `npx firebase-tools@latest login` uma vez; ao abrir o Claude Code nesta pasta,
+aprove o servidor `firebase` e o Claude passa a criar/consultar projeto, Firestore e regras direto.
+
 ### Firebase × Supabase
 
 | | Firebase (Firestore) | Supabase |
