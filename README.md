@@ -31,7 +31,7 @@ Todas gratuitas e sem cadastro, exceto a EIA (chave gratuita, opcional).
 |---|---|---|
 | **CCEE — Dados Abertos** (CKAN) | PLD horário por submercado | preço de referência, alvo dos modelos |
 | **ONS — Dados Abertos** (CKAN + S3) | CMO semi-horário (DESSEM), EAR, ENA, carga horária | formação do preço, fallback e auditoria do PLD, drivers hidrológicos |
-| **Energy-Charts** (Fraunhofer ISE) | preços day-ahead de 12 zonas europeias | arbitragem de bateria e de fronteira |
+| **Energy-Charts** (Fraunhofer ISE) | preços day-ahead de 12 zonas europeias (limite de 2 req/min: o app atualiza 2 zonas por vez e guarda no Firestore) | arbitragem de bateria e de fronteira |
 | **Elexon BMRS** | Market Index Price e System Buy/Sell Price (GB) | preço de curto prazo e escassez |
 | **NESO Carbon Intensity** | gCO₂/kWh e mix de geração (GB) | contexto de mercado |
 | **Open-Meteo** | previsão horária e ensemble ECMWF IFS 0,25° | vento, sol, temperatura, chuva nas bacias |
@@ -64,7 +64,7 @@ mostra — o auditor exibe os dois na tela **Agente auditor**.
 | Armazenamento: DP + LSMC | Longstaff & Schwartz (2001); Boogert & de Jong (2008) | QuantLib |
 | CVaR / Expected Shortfall | Rockafellar & Uryasev (2000) | — |
 
-`npm test` roda 32 testes: recuperação de parâmetros em dados simulados (LASSO/LARS, HMM, GARCH, MRJD,
+`npm test` roda 33 testes: recuperação de parâmetros em dados simulados (LASSO/LARS, HMM, GARCH, MRJD,
 regressão quantílica), valores críticos de MacKinnon, cobertura do conformal, DP contra força bruta,
 LEAR superando o benchmark ingênuo com Diebold–Mariano significativo, contratos de payload de cada API
 e o caminho completo previsão → arbitragem.
@@ -105,7 +105,7 @@ e o caminho completo previsão → arbitragem.
 6. Redeploy. A tela do auditor mostra "Firestore <projeto>" quando está conectado.
 
 Coleções criadas: `audit_runs`, `agent_reports`, `pld_days` (histórico próprio de PLD por dia —
-também usado como fallback se a CCEE cair). O plano gratuito (Spark) cobre com folga: 50 mil leituras e
+também usado como fallback se a CCEE cair) e `eu_prices` (último download de cada zona europeia). O plano gratuito (Spark) cobre com folga: 50 mil leituras e
 20 mil gravações por dia, 1 GiB de armazenamento; auditoria a cada 15 min grava ~100 documentos/dia.
 
 ### Firebase MCP (Claude Code)
