@@ -104,3 +104,20 @@ describe("PLD pela regra da ANEEL a partir do CMO", () => {
     expect(pld.slice(48).every((v) => v === maxHourly)).toBe(true);
   });
 });
+
+describe("lacunas de dias inteiros na fonte (ONS)", () => {
+  it("interpola até 3 dias ausentes, marca como imputados e quebra a série em lacunas maiores", () => {
+    const mk = (days: number[]) => {
+      const ts = days.flatMap((d) => Array.from({ length: 24 }, (_, h) => brtToUtc(2026, 9, d, h)));
+      return { ts, unit: "R$/MWh", values: Object.fromEntries(SUBS.map((s) => [s, ts.map((t) => 100 + (t % 7))])) } as SubPanel;
+    };
+    const dm = toDayMatrix(mk([1, 2, 3, 5, 6, 7, 8]), "SE"); // falta o dia 4
+    expect(dm.dates).toHaveLength(8);
+    expect(dm.imputed).toEqual(["2026-09-04"]);
+    const row = dm.rows[3];
+    row.forEach((v, h) => expect(v).toBeCloseTo((dm.rows[2][h] + dm.rows[4][h]) / 2, 9));
+    const broken = toDayMatrix(mk([1, 2, 3, 8, 9, 10]), "SE"); // 4 dias ausentes
+    expect(broken.dates[0]).toBe("2026-09-08");
+    expect(broken.imputed).toEqual([]);
+  });
+});

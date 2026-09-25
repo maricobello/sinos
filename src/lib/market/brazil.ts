@@ -20,7 +20,12 @@ export interface DayMatrix {
   dates: string[];
   dows: number[];
   rows: number[][]; // D×24
+  /** Dias ausentes na fonte preenchidos por interpolação (não entram nas métricas). */
+  imputed: string[];
 }
+
+/** Maior lacuna de dias inteiros preenchida por interpolação; lacunas maiores quebram a série. */
+export const MAX_GAP_DAYS = 3;
 
 /**
  * Converte um painel horário em matriz dia×hora (BRT) apenas com dias completos;
@@ -51,17 +56,40 @@ export function toDayMatrix(panel: SubPanel, sub: Sub): DayMatrix {
     dates.push(d);
     rows.push(filled as number[]);
   }
+  // dias inteiros ausentes na fonte (o ONS às vezes pula um dia): até MAX_GAP_DAYS são
+  // preenchidos por interpolação linear hora a hora entre os dias vizinhos
+  const fDates: string[] = [];
+  const fRows: number[][] = [];
+  const imputed = new Set<string>();
+  dates.forEach((d, i) => {
+    if (i > 0) {
+      const gap = Math.round((Date.parse(d) - Date.parse(dates[i - 1])) / 86400_000);
+      if (gap > 1 && gap - 1 <= MAX_GAP_DAYS) {
+        const a = rows[i - 1], b = rows[i];
+        for (let k = 1; k < gap; k++) {
+          const w = k / gap;
+          const nd = new Date(Date.parse(dates[i - 1]) + k * 86400_000).toISOString().slice(0, 10);
+          fDates.push(nd);
+          fRows.push(a.map((v, h) => (1 - w) * v + w * b[h]));
+          imputed.add(nd);
+        }
+      }
+    }
+    fDates.push(d);
+    fRows.push(rows[i]);
+  });
   // mantém só a sequência contígua final (LEAR exige dias consecutivos)
   let start = 0;
-  for (let i = dates.length - 1; i > 0; i--) {
-    const gap = (Date.parse(dates[i]) - Date.parse(dates[i - 1])) / 86400_000;
+  for (let i = fDates.length - 1; i > 0; i--) {
+    const gap = (Date.parse(fDates[i]) - Date.parse(fDates[i - 1])) / 86400_000;
     if (gap !== 1) { start = i; break; }
   }
-  const ds = dates.slice(start);
+  const ds = fDates.slice(start);
   return {
     dates: ds,
     dows: ds.map((d) => new Date(`${d}T12:00:00Z`).getUTCDay()),
-    rows: rows.slice(start),
+    rows: fRows.slice(start),
+    imputed: ds.filter((d) => imputed.has(d)),
   };
 }
 

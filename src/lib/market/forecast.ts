@@ -73,7 +73,15 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
   const calibrationDays = Math.min(90, dm.rows.length - 1);
   const nTest = Math.max(8, Math.min(28, dm.rows.length - 22));
   // piso/teto horário (clip) e teto estrutural na média do dia (post) — a mesma regra do PLD
-  const bt = learBacktest(dm.rows, dm.dows, nTest, { calibrationDays, clip, post: capDailyMean });
+  // configuração do LEAR em produção (a troca só entra após validação em dados reais)
+  const learOpts = { calibrationDays, clip, post: capDailyMean, scaling: "global" as const };
+  const btAll = learBacktest(dm.rows, dm.dows, nTest, learOpts);
+  // dias interpolados (ausentes na fonte) não são "observados": ficam fora das métricas
+  const imputed = new Set(dm.imputed);
+  const keep = btAll.dayIndex.map((d) => !imputed.has(dm.dates[d]));
+  const pick = <T,>(a: T[]) => a.filter((_, i) => keep[i]);
+  const bt = { forecasts: pick(btAll.forecasts), naive: pick(btAll.naive), actuals: pick(btAll.actuals), dayIndex: pick(btAll.dayIndex) };
+  if (dm.imputed.length) warnings.push(`${dm.imputed.length} dia(s) ausente(s) na fonte preenchido(s) por interpolação: ${dm.imputed.slice(-5).join(", ")}`);
   const act = bt.actuals.flat();
   const fL = bt.forecasts.flat();
   const fN = bt.naive.flat();
@@ -86,7 +94,7 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
   const aci = adaptiveConformal(resid, 0.1, 0.01, 168, 24);
   const kup = kupiec(aci.violations, Math.max(1, aci.evaluated), 0.1);
   // QRA avaliado fora da amostra: ajusta na 1ª metade dos dias do backtest, mede na 2ª
-  const cut = 24 * Math.floor(nTest / 2);
+  const cut = 24 * Math.floor(bt.actuals.length / 2);
   const qraCal = fitQRA(fL.slice(0, cut).map((f, i) => [f, fN[i]]), act.slice(0, cut), QRA_TAUS);
   const oos = act.slice(cut).map((a, j) => ({ a, q: predictQRA(qraCal, [fL[cut + j], fN[cut + j]]) }));
   const qraCrps = mean(oos.map(({ a, q }) => crpsFromQuantiles(a, q, QRA_TAUS)));
@@ -95,7 +103,7 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
   const qra = fitQRA(fL.map((f, i) => [f, fN[i]]), act, QRA_TAUS);
 
   // ---- previsão final
-  const model = learFit(dm.rows, dm.dows, { calibrationDays, clip });
+  const model = learFit(dm.rows, dm.dows, learOpts);
   const lastDate = dm.dates[dm.dates.length - 1];
   const futureDates = Array.from({ length: horizonDays }, (_, k) => addDays(lastDate, k + 1));
   const futureDows = futureDates.map((d) => new Date(`${d}T12:00:00Z`).getUTCDay());
@@ -217,7 +225,7 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
       dailyMean,
     },
     backtest: {
-      days: nTest,
+      days: bt.actuals.length,
       maeLear: mae(act, fL),
       maeNaive: mae(act, fN),
       rmae: rmae(act, fL, fN),
