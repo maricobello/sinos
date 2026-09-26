@@ -129,6 +129,30 @@ export default function AuditoriaPage() {
         </Panel>
       </div>
 
+      {data?.slo?.samples ? (
+        <Panel
+          title="SLO das fontes"
+          subtitle={`Amostra das últimas ${data.slo.samples} execuções (${data.slo.fromTs ? dateTime(data.slo.fromTs) : "—"} → ${data.slo.toTs ? dateTime(data.slo.toTs) : "—"}). Disponibilidade = fora de “fora do ar”; conformidade = “OK” em todas as checagens.`}
+        >
+          <div className="mb-3 flex flex-wrap gap-2 text-xs">
+            <Badge level={data.slo.healthyPct >= 95 ? "good" : data.slo.healthyPct >= 80 ? "warning" : "critical"}>saudável em {num(data.slo.healthyPct, 1)}% dos runs</Badge>
+            {data.slo.meanScore !== null ? <Badge level="neutral">score médio {num(data.slo.meanScore, 1)}</Badge> : null}
+          </div>
+          <Table
+            head={["Fonte", "Amostras", "Disponibilidade", "Conformidade", "Latência p50", "Latência p95"]}
+            align={["left", "right", "right", "right", "right", "right"]}
+            rows={data.slo.sources.map((s) => [
+              s.expectedDown ? `${s.name} (bloqueio esperado; coberto pelo CMO)` : s.name,
+              s.samples,
+              <Badge key="a" level={s.expectedDown ? "neutral" : s.availabilityPct >= 99 ? "good" : s.availabilityPct >= 95 ? "warning" : "critical"}>{num(s.availabilityPct, 1)}%</Badge>,
+              `${num(s.okPct, 1)}%`,
+              s.latencyP50 !== null ? `${num(s.latencyP50)} ms` : "—",
+              s.latencyP95 !== null ? `${num(s.latencyP95)} ms` : "—",
+            ])}
+          />
+        </Panel>
+      ) : null}
+
       <Panel title="Fontes auditadas" subtitle="Clique numa linha para ver as checagens">
         {l ? (
           <div className="scrollbar-thin overflow-x-auto">

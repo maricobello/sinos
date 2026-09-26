@@ -162,3 +162,68 @@ export function bookSummary(contracts: Contract[], pld: MonthlyPld): BookSummary
     latestMonth,
   };
 }
+
+/** Exposição a termo: energia líquida (MWh; + comprado, − vendido) por mês ainda sem PLD realizado. */
+export interface OpenMonthRow {
+  month: string;
+  bySub: Partial<Record<Sub, number>>;
+  totalMWh: number;
+}
+
+export function openExposure(results: ContractResult[]): OpenMonthRow[] {
+  const acc = new Map<string, Partial<Record<Sub, number>>>();
+  for (const r of results) {
+    for (const m of r.months) {
+      if (m.covered) continue;
+      const row = acc.get(m.month) ?? {};
+      row[r.contract.submarket] = (row[r.contract.submarket] ?? 0) + dirSign(r.contract.side) * m.energyMWh;
+      acc.set(m.month, row);
+    }
+  }
+  return [...acc.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, bySub]) => ({ month, bySub, totalMWh: Object.values(bySub).reduce((s, v) => s + (v ?? 0), 0) }));
+}
+
+/**
+ * Marcação a mercado dos meses em aberto contra uma curva a termo INFORMADA PELO USUÁRIO
+ * (ex.: cotação BBCE do dia, preço de balcão): MtM = sinal·(F_sub − K)·energia. Sem preço
+ * para o submercado, o mês fica fora do MtM (e é contado em `unpricedMonths`).
+ */
+export function markToForward(results: ContractResult[], fwd: Partial<Record<Sub, number>>): { mtmRS: number; pricedMonths: number; unpricedMonths: number } {
+  let mtmRS = 0, pricedMonths = 0, unpricedMonths = 0;
+  for (const r of results) {
+    const F = fwd[r.contract.submarket];
+    for (const m of r.months) {
+      if (m.covered) continue;
+      if (F === undefined || !Number.isFinite(F)) { unpricedMonths++; continue; }
+      mtmRS += dirSign(r.contract.side) * (F - r.contract.priceRS) * m.energyMWh;
+      pricedMonths++;
+    }
+  }
+  return { mtmRS, pricedMonths, unpricedMonths };
+}
+
+/** Valida/normaliza contratos vindos de um backup JSON (descarta entradas inválidas). */
+export function parseContracts(raw: unknown): Contract[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Contract[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object") continue;
+    const c = x as Record<string, unknown>;
+    const submarket = c.submarket as Sub;
+    const side = c.side as Side;
+    const volumeMWm = Number(c.volumeMWm);
+    const priceRS = Number(c.priceRS);
+    const start = String(c.start ?? "");
+    const end = String(c.end ?? "");
+    if (!SUBS.includes(submarket) || (side !== "compra" && side !== "venda")) continue;
+    if (!(volumeMWm > 0) || !Number.isFinite(priceRS) || !isMonth(start) || !isMonth(end) || start > end) continue;
+    out.push({
+      id: typeof c.id === "string" && c.id ? c.id : Math.random().toString(36).slice(2, 10),
+      label: typeof c.label === "string" && c.label ? c.label.slice(0, 80) : undefined,
+      submarket, side, volumeMWm, priceRS, start, end,
+    });
+  }
+  return out;
+}

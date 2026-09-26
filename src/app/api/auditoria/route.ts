@@ -1,4 +1,5 @@
 import { AGENT_MODEL } from "@/lib/audit/agent";
+import { computeSlo } from "@/lib/audit/slo";
 import { dataMode } from "@/lib/data";
 import { firebaseStatus } from "@/lib/firebase";
 import { quantile } from "@/lib/quant/stats";
@@ -40,6 +41,7 @@ export async function GET(req: Request) {
     return Response.json(
       {
         latest,
+        slo: computeSlo(runs),
         history: runs.map((r) => ({ id: r.id, startedAt: r.startedAt, overallScore: r.overallScore, counts: r.counts, trigger: r.trigger })).reverse(),
         reports,
         registry: SOURCE_LIST,

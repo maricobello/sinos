@@ -147,7 +147,18 @@ export default function ArbitragemPage() {
       <PageHeader
         title="Arbitragem"
         subtitle="Temporal (armazenamento: LP exato + Least-Squares Monte Carlo), espacial (spreads entre submercados) e europeia. Métricas de decisão/risco, não P&L transacionável."
-        right={<Segmented label="Submercado" value={sub} options={SUB_OPTS} onChange={setSub} />}
+        right={
+          <div className="flex items-center gap-3">
+            <a
+              href={`${url}&format=csv`}
+              className="rounded-md border border-line px-2.5 py-1 text-xs text-ink-2 hover:bg-surface-2"
+              title="Baixar o despacho ótimo das próximas 72 h (preço esperado, potência e SoC) em CSV"
+            >
+              ↓ CSV
+            </a>
+            <Segmented label="Submercado" value={sub} options={SUB_OPTS} onChange={setSub} />
+          </div>
+        }
       />
       <SimBanner metas={[a?.meta.pld, a?.meta.eu, a?.meta.fx]} />
       <div role="note" className="flex items-start gap-2 rounded-lg border border-line bg-surface-2/40 px-3 py-2 text-[11px] text-muted">
