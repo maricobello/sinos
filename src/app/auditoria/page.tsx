@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Bot, Database, ExternalLink, Play, RefreshCw } from "lucide-react";
+import { Bell, Bot, Database, ExternalLink, Play, RefreshCw } from "lucide-react";
 import { EChart, type ChartOption } from "@/components/EChart";
 import { Badge, ErrorBox, Loading, PageHeader, Panel, statusLabel, statusLevel, Table } from "@/components/ui";
 import type { AuditoriaResp } from "@/lib/apiTypes";
@@ -46,6 +46,24 @@ export default function AuditoriaPage() {
       setRunMsg(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function testAlert() {
+    setRunMsg(null);
+    try {
+      const k = key || storedKey();
+      const res = await fetch("/api/auditoria/alert-test", { method: "POST", headers: k ? { "x-admin-key": k } : {} });
+      const body = await res.json();
+      setRunMsg(
+        body.sent
+          ? `Notificação de teste enviada (${body.destination}). Confira o app/canal.`
+          : body.throttled
+            ? "Teste já enviado há pouco — limite de 1 por hora sem credencial."
+            : body.error ?? `Falha ao enviar (HTTP ${res.status}).`,
+      );
+    } catch (e) {
+      setRunMsg(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -120,6 +138,19 @@ export default function AuditoriaPage() {
             <span className="flex items-center gap-1.5">
               <Bot size={13} aria-hidden /> Agente IA:{" "}
               {data ? data.agent.configured ? <Badge level="good">{data.agent.model}</Badge> : <Badge level="warning">defina ANTHROPIC_API_KEY</Badge> : "—"}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Bell size={13} aria-hidden /> Alertas:{" "}
+              {data ? (
+                data.alerts.configured ? (
+                  <>
+                    <Badge level="good">{data.alerts.destination === "ntfy" ? "push (ntfy)" : "webhook"}</Badge>
+                    <button onClick={testAlert} className="text-accent hover:underline">enviar teste</button>
+                  </>
+                ) : (
+                  <Badge level="warning">defina ALERT_WEBHOOK_URL</Badge>
+                )
+              ) : "—"}
             </span>
             {data?.firebase.error ? <span className="text-critical">Firebase: {data.firebase.error}</span> : null}
           </div>

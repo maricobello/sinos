@@ -42,7 +42,7 @@ export function healthWithAge(run: AuditRun, now = Date.now()): Health & { ageMi
 
 
 export interface HealthMessage {
-  kind: "degraded" | "recovered";
+  kind: "degraded" | "recovered" | "test";
   title: string;
   text: string;
 }
@@ -73,11 +73,14 @@ export function healthTransition(run: AuditRun, previous: AuditRun | null, baseU
  * cabeçalhos de título/prioridade — é o caminho grátis e sem conta para push no celular;
  * Slack/Discord/Teams recebem JSON `{text, content}`.
  */
-export function alertRequest(url: string, msg: HealthMessage, format = process.env.ALERT_WEBHOOK_FORMAT): { body: string; headers: Record<string, string> } {
+export function alertKind(url: string, format = process.env.ALERT_WEBHOOK_FORMAT): "ntfy" | "json" {
   let host = "";
   try { host = new URL(url).host; } catch { /* URL inválida: cai no JSON */ }
-  const ntfy = format === "ntfy" || (format !== "json" && /(^|\.)ntfy\.sh$/.test(host));
-  if (ntfy) {
+  return format === "ntfy" || (format !== "json" && /(^|\.)ntfy\.sh$/.test(host)) ? "ntfy" : "json";
+}
+
+export function alertRequest(url: string, msg: HealthMessage, format = process.env.ALERT_WEBHOOK_FORMAT): { body: string; headers: Record<string, string> } {
+  if (alertKind(url, format) === "ntfy") {
     const link = msg.text.split("\n").pop() ?? "";
     return {
       body: msg.text,
@@ -85,7 +88,7 @@ export function alertRequest(url: string, msg: HealthMessage, format = process.e
         "Content-Type": "text/plain; charset=utf-8",
         Title: msg.title,
         Priority: msg.kind === "degraded" ? "high" : "default",
-        Tags: msg.kind === "degraded" ? "warning" : "white_check_mark",
+        Tags: msg.kind === "degraded" ? "warning" : msg.kind === "test" ? "test_tube" : "white_check_mark",
         ...(/^https?:\/\//.test(link) ? { Click: link } : {}),
       },
     };

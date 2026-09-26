@@ -75,6 +75,7 @@ export interface AuditoriaResp {
   storage: "firestore" | "memory";
   firebase: { configured: boolean; projectId: string | null; error: string | null };
   agent: { configured: boolean; model: string };
+  alerts: { configured: boolean; destination: "ntfy" | "json" | null };
   auth: { required: boolean };
   dataMode: string;
 }
