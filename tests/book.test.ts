@@ -81,4 +81,21 @@ describe("carteira: liquidação e MtM contra o PLD", () => {
     expect(out[0].id).toBeTruthy();
     expect(parseContracts({})).toEqual([]);
   });
+
+  it("mês parcial (menos horas que o calendário) não entra no liquidado: vira estimativa", () => {
+    const ts: number[] = [];
+    for (let d = 1; d <= 30; d++) for (let h = 0; h < 24; h++) ts.push(brtToUtc(2026, 6, d, h)); // junho completo
+    for (let d = 1; d <= 23; d++) for (let h = 0; h < 24; h++) ts.push(brtToUtc(2026, 7, d, h)); // julho até dia 23
+    const values = Object.fromEntries(SUBS.map((s) => [s, ts.map(() => 200)])) as SubPanel["values"];
+    const m = monthlyPldFromPanel({ ts, values, unit: "R$/MWh" });
+    expect(m.hours?.["2026-06"]?.SE).toBe(720);
+    expect(m.hours?.["2026-07"]?.SE).toBe(23 * 24);
+    const r = settleContract({ id: "1", submarket: "SE", side: "compra", volumeMWm: 1, priceRS: 150, start: "2026-06", end: "2026-07" }, m);
+    expect(r.coveredMonths).toBe(1);
+    expect(r.partialMonths).toBe(1);
+    expect(r.settledRS).toBeCloseTo(50 * 720, 6); // só junho
+    expect(r.partialRS).toBeCloseTo(50 * 744, 6); // julho estimado pela média até agora
+    expect(r.months[1].settlementRS).toBeNull();
+    expect(openExposure(bookSummary([r.contract], m).results).map((x) => x.month)).toEqual(["2026-07"]);
+  });
 });

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { ErrorBox, Loading, PageHeader, Panel, Stat, Table } from "@/components/ui";
-import { bookSummary, isMonth, markToForward, openExposure, parseContracts, type Contract, type MonthlyPld, type Side } from "@/lib/market/book";
+import { bookSummary, hoursInMonth, isMonth, markToForward, openExposure, parseContracts, type Contract, type MonthlyPld, type Side } from "@/lib/market/book";
 import { toCsv } from "@/lib/csv";
 import { brl, num } from "@/lib/fmt";
 import { SUBS, type Sub } from "@/lib/sources/types";
@@ -142,7 +142,7 @@ export default function CarteiraPage() {
   const exportCsv = () => {
     if (!summary) return;
     const rows = summary.results.flatMap((r) =>
-      r.months.map((m) => [r.contract.label ?? "", r.contract.submarket, r.contract.side, r.contract.volumeMWm, r.contract.priceRS, m.month, m.energyMWh, m.pld?.toFixed(2) ?? "", m.settlementRS?.toFixed(2) ?? "", m.covered ? "liquidado" : "aberto"]),
+      r.months.map((m) => [r.contract.label ?? "", r.contract.submarket, r.contract.side, r.contract.volumeMWm, r.contract.priceRS, m.month, m.energyMWh, m.pld?.toFixed(2) ?? "", (m.settlementRS ?? m.estimateRS)?.toFixed(2) ?? "", m.covered ? "liquidado" : m.partial ? "parcial" : "aberto"]),
     );
     download(
       `sinos-carteira-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -189,7 +189,11 @@ export default function CarteiraPage() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Stat label="Resultado liquidado" value={brl(summary.settledRS, 0)} deltaGood={summary.settledRS >= 0} delta={summary.settledRS >= 0 ? "a favor da carteira" : "contra a carteira"} hint="meses com PLD realizado" />
             <Stat label="Contratos" value={String(contracts.length)} hint={`${summary.coveredMonths} meses liquidados`} />
-            <Stat label="Meses em aberto" value={String(summary.openMonths)} hint="dependem da curva a termo" />
+            <Stat
+              label="Meses em aberto"
+              value={String(summary.openMonths)}
+              hint={summary.partialMonths ? `inclui ${summary.partialMonths} parcial(is): estimativa ${brl(summary.partialRS, 0)} pela média até agora` : "dependem da curva a termo"}
+            />
             <Stat label="Cobertura do PLD" value={months.length ? `${months[0]} … ${months[months.length - 1]}` : "—"} hint={`${months.length} meses no app`} />
           </div>
 
@@ -271,7 +275,7 @@ export default function CarteiraPage() {
                   num(r.contract.volumeMWm, 0),
                   brl(r.contract.priceRS, 0),
                   `${r.contract.start} → ${r.contract.end}`,
-                  r.openMonths ? `${r.coveredMonths} (+${r.openMonths} aberto)` : String(r.coveredMonths),
+                  r.openMonths ? `${r.coveredMonths} (+${r.openMonths} aberto${r.partialMonths ? `, ${r.partialMonths} parcial` : ""})` : String(r.coveredMonths),
                   r.coveredMonths ? brl(r.settledRS, 0) : "—",
                   <span key="x" className="inline-flex gap-3">
                     <button onClick={() => edit(r.contract)} className="text-accent hover:underline" title="Editar">editar</button>
@@ -288,7 +292,10 @@ export default function CarteiraPage() {
             <Table
               head={["Mês", ...SUBS]}
               align={["left", "right", "right", "right", "right"]}
-              rows={months.slice(-12).map((m) => [m, ...SUBS.map((s) => { const v = pld.byMonth[m]?.[s]; return v === undefined ? "—" : brl(v, 0); })])}
+              rows={months.slice(-12).map((m) => [
+                pld.hours && SUBS.some((s) => (pld.hours?.[m]?.[s] ?? Infinity) < hoursInMonth(m)) ? `${m} (parcial)` : m,
+                ...SUBS.map((s) => { const v = pld.byMonth[m]?.[s]; return v === undefined ? "—" : brl(v, 0); }),
+              ])}
             />
           </Panel>
         </>

@@ -35,6 +35,12 @@ export interface MonthlyPld {
   /** PLD médio mensal por submercado: month "YYYY-MM" → (submercado → R$/MWh). */
   byMonth: Record<string, Partial<Record<Sub, number>>>;
   months: string[]; // ordenados
+  /**
+   * Horas com PLD em cada mês/submercado. Mês com menos horas que o calendário é PARCIAL:
+   * a média ainda vai mudar, então não entra no resultado liquidado (vira estimativa).
+   * Ausente ⇒ todos os meses tratados como completos (compatibilidade).
+   */
+  hours?: Record<string, Partial<Record<Sub, number>>>;
 }
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -73,26 +79,36 @@ export function monthlyPldFromPanel(panel: SubPanel): MonthlyPld {
     acc.set(month, row);
   });
   const byMonth: MonthlyPld["byMonth"] = {};
+  const hours: NonNullable<MonthlyPld["hours"]> = {};
   for (const [month, row] of acc) {
-    byMonth[month] = Object.fromEntries(SUBS.filter((s) => row[s].n >= 24 * 20).map((s) => [s, row[s].s / row[s].n]));
+    const subs = SUBS.filter((s) => row[s].n >= 24);
+    if (!subs.length) continue;
+    byMonth[month] = Object.fromEntries(subs.map((s) => [s, row[s].s / row[s].n]));
+    hours[month] = Object.fromEntries(subs.map((s) => [s, row[s].n]));
   }
-  return { byMonth, months: [...Object.keys(byMonth)].sort() };
+  return { byMonth, months: [...Object.keys(byMonth)].sort(), hours };
 }
 
 export interface MonthResult {
   month: string;
   pld: number | null; // PLD médio do submercado no mês (null = sem dado realizado)
   energyMWh: number;
-  settlementRS: number | null; // resultado da liquidação (null quando falta PLD)
+  settlementRS: number | null; // resultado da liquidação (null quando falta PLD ou o mês é parcial)
   covered: boolean;
+  /** Mês com PLD só de parte das horas: estimativa pela média até agora, fora do liquidado. */
+  partial: boolean;
+  estimateRS: number | null;
 }
 
 export interface ContractResult {
   contract: Contract;
   months: MonthResult[];
-  settledRS: number; // soma dos meses com PLD realizado
+  settledRS: number; // soma dos meses com PLD realizado completo
   coveredMonths: number;
-  openMonths: number; // meses sem PLD (dependem da curva a termo)
+  openMonths: number; // meses sem PLD completo (dependem da curva a termo); inclui os parciais
+  partialMonths: number;
+  /** Estimativa dos meses parciais pela média do PLD até agora (não liquidada). */
+  partialRS: number;
   energyMWh: number;
 }
 
@@ -104,21 +120,29 @@ export function settleContract(c: Contract, pld: MonthlyPld): ContractResult {
     const energyMWh = c.volumeMWm * hoursInMonth(month);
     const p = pld.byMonth[month]?.[c.submarket];
     const has = p !== undefined && Number.isFinite(p);
+    const n = pld.hours?.[month]?.[c.submarket];
+    const complete = has && (n === undefined || n >= hoursInMonth(month));
+    const value = has ? dirSign(c.side) * (p! - c.priceRS) * energyMWh : null;
     return {
       month,
       pld: has ? p! : null,
       energyMWh,
-      settlementRS: has ? dirSign(c.side) * (p! - c.priceRS) * energyMWh : null,
-      covered: has,
+      settlementRS: complete ? value : null,
+      covered: complete,
+      partial: has && !complete,
+      estimateRS: has && !complete ? value : null,
     };
   });
   const covered = months.filter((m) => m.covered);
+  const partial = months.filter((m) => m.partial);
   return {
     contract: c,
     months,
     settledRS: covered.reduce((s, m) => s + (m.settlementRS ?? 0), 0),
     coveredMonths: covered.length,
     openMonths: months.length - covered.length,
+    partialMonths: partial.length,
+    partialRS: partial.reduce((s, m) => s + (m.estimateRS ?? 0), 0),
     energyMWh: months.reduce((s, m) => s + m.energyMWh, 0),
   };
 }
@@ -135,6 +159,8 @@ export interface BookSummary {
   settledRS: number;
   coveredMonths: number;
   openMonths: number;
+  partialRS: number;
+  partialMonths: number;
   /** Exposição líquida por submercado (soma dos volumes ativos no último mês com PLD). */
   exposure: ExposureRow[];
   latestMonth: string | null;
@@ -158,6 +184,8 @@ export function bookSummary(contracts: Contract[], pld: MonthlyPld): BookSummary
     settledRS: results.reduce((s, r) => s + r.settledRS, 0),
     coveredMonths: results.reduce((s, r) => s + r.coveredMonths, 0),
     openMonths: results.reduce((s, r) => s + r.openMonths, 0),
+    partialRS: results.reduce((s, r) => s + r.partialRS, 0),
+    partialMonths: results.reduce((s, r) => s + r.partialMonths, 0),
     exposure: SUBS.filter((s) => exp.has(s)).map((s) => ({ submarket: s, netMWm: exp.get(s)!.net, contracts: exp.get(s)!.n })),
     latestMonth,
   };
