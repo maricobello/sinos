@@ -10,4 +10,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Diagnóstico de rede
+        run: |
+          curl -sS -m 20 -o /dev/null -w 'routing %{http_code} %{remote_ip}\n' https://api.powerbi.com/public/routing/cluster/d7c3e506-ef85-4386-8e54-2dfcdc8017d0 || true
+          curl -sS -m 20 -o view.html -w 'view %{http_code}\n' "https://app.powerbi.com/view?r=eyJrIjoiMzQ1NWQ5YTItMGNkZS00N2FjLTk1N2EtYjkyNDEyMTY5MTlmIiwidCI6ImQ3YzNlNTA2LWVmODUtNDM4Ni04ZTU0LTJkZmNkYzgwMTdkMCJ9" || true
+          grep -o "resolvedClusterUri[^;]*" view.html | head -2 || true
       - run: node scripts/explore-powerbi.mjs

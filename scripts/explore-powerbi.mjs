@@ -7,11 +7,33 @@ const REPORTS = [
 const UA = "SIN-OS/1.0 (+https://github.com/maricobello/sinos)";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function j(url, init = {}) {
-  const res = await fetch(url, { ...init, headers: { "User-Agent": UA, Accept: "application/json", ...(init.headers ?? {}) } });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}: ${text.slice(0, 300)}`);
-  return JSON.parse(text);
+async function raw(url, init = {}, tries = 3) {
+  for (let a = 1; ; a++) {
+    try {
+      const res = await fetch(url, { ...init, headers: { "User-Agent": UA, Accept: "application/json, text/html", ...(init.headers ?? {}) } });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${url}: ${text.slice(0, 300)}`);
+      return text;
+    } catch (e) {
+      if (a >= tries) throw e;
+      console.log(`   tentativa ${a} falhou (${e.cause?.code ?? e.message.slice(0, 80)}), repetindo…`);
+      await sleep(1500 * a);
+    }
+  }
+}
+const j = async (url, init = {}) => JSON.parse(await raw(url, init));
+
+async function clusterOf(r, t) {
+  try {
+    const route = await j(`https://api.powerbi.com/public/routing/cluster/${t}`);
+    return route.FixedClusterUri;
+  } catch (e) {
+    console.log("   roteamento falhou:", e.cause?.code ?? e.message.slice(0, 120), "— lendo a página do relatório");
+  }
+  const html = await raw(`https://app.powerbi.com/view?r=${r}`);
+  const m = /resolvedClusterUri\s*=\s*['"]([^'"]+)['"]/.exec(html) ?? /(https:\/\/wabi-[a-z0-9-]+\.analysis\.windows\.net\/?)/i.exec(html);
+  if (!m) throw new Error("cluster não encontrado na página");
+  return m[1];
 }
 
 function decodeDsr(result) {
@@ -47,8 +69,7 @@ function decodeDsr(result) {
 for (const r of REPORTS) {
   const { k, t } = JSON.parse(Buffer.from(r, "base64").toString());
   console.log(`\n==================== relatório ${k} (tenant ${t})`);
-  const route = await j(`https://api.powerbi.com/public/routing/cluster/${t}`);
-  const api = route.FixedClusterUri.replace("-redirect", "-api").replace(/\/$/, "");
+  const api = (await clusterOf(r, t)).replace("-redirect", "-api").replace(/\/$/, "");
   console.log("cluster:", api);
   const H = { "X-PowerBI-ResourceKey": k };
   const me = await j(`${api}/public/reports/${k}/modelsAndExploration?preferReadOnlySession=true`, { headers: H });
