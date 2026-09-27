@@ -1,140 +1,82 @@
-// Exploração (temporária) dos relatórios Power BI "Publicar na Web": páginas, visuais,
-// esquema do modelo e amostra de linhas de cada visual. Só leitura, poucas requisições.
-const REPORTS = [
-  "eyJrIjoiMzQ1NWQ5YTItMGNkZS00N2FjLTk1N2EtYjkyNDEyMTY5MTlmIiwidCI6ImQ3YzNlNTA2LWVmODUtNDM4Ni04ZTU0LTJkZmNkYzgwMTdkMCJ9",
-  "eyJrIjoiNjk2NzUyNmEtNGZkMy00NDZhLWI4ZjgtMzEyMzhiMDA4NGRkIiwidCI6ImQ3YzNlNTA2LWVmODUtNDM4Ni04ZTU0LTJkZmNkYzgwMTdkMCJ9",
-];
+// Exploração (temporária) 2: colunas brutas do PLD horário nos dois relatórios públicos.
+const REPORTS = {
+  dia: "eyJrIjoiMzQ1NWQ5YTItMGNkZS00N2FjLTk1N2EtYjkyNDEyMTY5MTlmIiwidCI6ImQ3YzNlNTA2LWVmODUtNDM4Ni04ZTU0LTJkZmNkYzgwMTdkMCJ9",
+  hist: "eyJrIjoiNjk2NzUyNmEtNGZkMy00NDZhLWI4ZjgtMzEyMzhiMDA4NGRkIiwidCI6ImQ3YzNlNTA2LWVmODUtNDM4Ni04ZTU0LTJkZmNkYzgwMTdkMCJ9",
+};
 const UA = "SIN-OS/1.0 (+https://github.com/maricobello/sinos)";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-async function raw(url, init = {}, tries = 3) {
-  for (let a = 1; ; a++) {
-    try {
-      const res = await fetch(url, { ...init, headers: { "User-Agent": UA, Accept: "application/json, text/html", ...(init.headers ?? {}) } });
-      const text = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${url}: ${text.slice(0, 300)}`);
-      return text;
-    } catch (e) {
-      if (a >= tries) throw e;
-      console.log(`   tentativa ${a} falhou (${e.cause?.code ?? e.message.slice(0, 80)}), repetindo…`);
-      await sleep(1500 * a);
-    }
-  }
+async function raw(url, init = {}) {
+  const res = await fetch(url, { ...init, headers: { "User-Agent": UA, Accept: "application/json, text/html", ...(init.headers ?? {}) } });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+  return text;
 }
-const j = async (url, init = {}) => JSON.parse(await raw(url, init));
-
-async function clusterOf(r, t) {
-  try {
-    const route = await j(`https://api.powerbi.com/public/routing/cluster/${t}`);
-    return route.FixedClusterUri;
-  } catch (e) {
-    console.log("   roteamento falhou:", e.cause?.code ?? e.message.slice(0, 120), "— lendo a página do relatório");
-  }
-  const html = await raw(`https://app.powerbi.com/view?r=${r}`);
-  const m = /resolvedClusterUri\s*=\s*['"]([^'"]+)['"]/.exec(html) ?? /(https:\/\/wabi-[a-z0-9-]+\.analysis\.windows\.net\/?)/i.exec(html);
-  if (!m) throw new Error("cluster não encontrado na página");
-  return m[1];
-}
-
-function decodeDsr(result) {
-  const data = result?.data;
-  const sel = data?.descriptor?.Select ?? [];
-  const ds = data?.dsr?.DS?.[0];
-  if (!ds) return { cols: [], rows: [] };
+const j = async (u, i) => JSON.parse(await raw(u, i));
+function decode(result) {
+  const sel = result?.data?.descriptor?.Select ?? [];
+  const ds = result?.data?.dsr?.DS?.[0];
+  if (!ds) return { cols: [], rows: [], err: JSON.stringify(result).slice(0, 400) };
   const dicts = ds.ValueDicts ?? {};
-  const ph = (ds.PH ?? []).find((p) => p.DM0) ?? {};
-  const dm = ph.DM0 ?? [];
+  const dm = (ds.PH ?? []).find((p) => p.DM0)?.DM0 ?? [];
   const schema = dm[0]?.S ?? [];
-  const nameOf = (n) => sel.find((s) => s.Value === n)?.Name ?? n;
-  const cols = schema.map((s) => nameOf(s.N));
   let prev = [];
   const rows = dm.map((row) => {
-    const C = row.C ?? [];
-    const R = row.R ?? 0;
-    const N = row["Ø"] ?? 0;
+    const C = row.C ?? [], R = row.R ?? 0, N = row["Ø"] ?? 0;
     let ci = 0;
-    const vals = schema.map((s, i) => {
-      if (R & (1 << i)) return prev[i];
-      if (N & (1 << i)) return null;
-      let v = C[ci++];
-      if (s.DN && typeof v === "number") v = dicts[s.DN]?.[v];
-      return v;
-    });
-    prev = vals;
-    return vals;
+    const v = schema.map((s, i) => (R & (1 << i) ? prev[i] : N & (1 << i) ? null : ((x) => (s.DN && typeof x === "number" ? dicts[s.DN]?.[x] : x))(C[ci++])));
+    prev = v;
+    return v;
   });
-  return { cols, rows, restart: !!ds.RT, complete: ds.IC };
+  return { cols: schema.map((s) => sel.find((x) => x.Value === s.N)?.Name ?? s.N), types: schema.map((s) => s.T), rows, rt: !!ds.RT };
 }
+const col = (src, p) => ({ Column: { Expression: { SourceRef: { Source: src } }, Property: p }, Name: `${src}.${p}` });
+const agg = (src, p, f) => ({ Aggregation: { Expression: { Column: { Expression: { SourceRef: { Source: src } }, Property: p } }, Function: f }, Name: `f${f}(${src}.${p})` });
+const ge = (src, p, lit) => ({ Condition: { Comparison: { ComparisonKind: 2, Left: { Column: { Expression: { SourceRef: { Source: src } }, Property: p } }, Right: { Literal: { Value: lit } } } } });
 
-for (const r of REPORTS) {
-  const { k, t } = JSON.parse(Buffer.from(r, "base64").toString());
-  console.log(`\n==================== relatório ${k} (tenant ${t})`);
-  const api = (await clusterOf(r, t)).replace("-redirect", "-api").replace(/\/$/, "");
-  console.log("cluster:", api);
-  const H = { "X-PowerBI-ResourceKey": k };
-  const me = await j(`${api}/public/reports/${k}/modelsAndExploration?preferReadOnlySession=true`, { headers: H });
-  const model = me.models?.[0];
-  const ex = me.exploration;
-  console.log("modelo:", model?.id, model?.dbName, "| relatório:", ex?.report?.objectId ?? me.exploration?.report?.displayName, "| atualizado:", model?.LastRefreshTime ?? model?.lastRefreshTime);
+async function ctx(r) {
+  const { k } = JSON.parse(Buffer.from(r, "base64").toString());
+  const html = await raw(`https://app.powerbi.com/view?r=${r}`);
+  const api = /resolvedClusterUri\s*=\s*['"]([^'"]+)['"]/.exec(html)[1].replace("-redirect", "-api").replace(/\/$/, "");
+  const me = await j(`${api}/public/reports/${k}/modelsAndExploration?preferReadOnlySession=true`, { headers: { "X-PowerBI-ResourceKey": k } });
+  return { k, api, model: me.models[0], reportId: me.exploration?.report?.objectId ?? "" };
+}
+async function query(c, entity, select, where = [], count = 5000) {
+  const q = { Version: 2, From: [{ Name: "p", Entity: entity, Type: 0 }], Select: select, ...(where.length ? { Where: where } : {}) };
+  const body = {
+    version: "1.0.0",
+    queries: [{ Query: { Commands: [{ SemanticQueryDataShapeCommand: { Query: q, Binding: { Primary: { Groupings: [{ Projections: select.map((_, i) => i) }] }, DataReduction: { DataVolume: 4, Primary: { Window: { Count: count } } }, Version: 1 }, ExecutionMetricsKind: 1 } }] }, QueryId: "", ApplicationContext: { DatasetId: c.model.dbName, Sources: [{ ReportId: c.reportId }] } }],
+    cancelQueries: [],
+    modelId: c.model.id,
+  };
+  await sleep(500);
+  const res = await j(`${c.api}/public/reports/querydata?synchronous=true`, { method: "POST", headers: { "X-PowerBI-ResourceKey": c.k, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return { res, d: decode(res.results?.[0]?.result) };
+}
+const show = (label, { d }, n = 8) => {
+  console.log(`\n## ${label}: ${d.rows?.length ?? 0} linhas${d.rt ? " (+ mais)" : ""} · ${d.cols?.join(" | ")} · tipos ${JSON.stringify(d.types)}${d.err ? " · ERRO " + d.err : ""}`);
+  for (const r of (d.rows ?? []).slice(0, n)) console.log("  ", JSON.stringify(r));
+  if ((d.rows ?? []).length > n) console.log("   …", JSON.stringify(d.rows[d.rows.length - 1]));
+};
+
+const since = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10);
+for (const [name, r] of Object.entries(REPORTS)) {
+  console.log(`\n==================== ${name}`);
+  const c = await ctx(r);
+  console.log("modelo", c.model.id, "atualizado", c.model.LastRefreshTime ?? c.model.lastRefreshTime);
   try {
-    const cs = await j(`${api}/public/reports/conceptualschema`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify({ modelIds: [model.id], userPreferredLocale: "pt-BR" }) });
-    for (const e of cs.schemas?.[0]?.schema?.Entities ?? []) {
-      if (e.Hidden) continue;
-      console.log(`  tabela ${e.Name}: ${(e.Properties ?? []).filter((p) => !p.Hidden).map((p) => `${p.Name}${p.Measure ? "(m)" : ""}`).join(", ").slice(0, 400)}`);
-    }
-  } catch (e) {
-    console.log("  esquema indisponível:", e.message.slice(0, 200));
+    show("modificado", await query(c, name === "dia" ? "DataModified" : "PLD_Horario_DataModified", [col("p", "DATA_MODIFIED")]));
+  } catch (e) { console.log("modificado falhou", e.message.slice(0, 200)); }
+  if (name === "dia") {
+    try { show("FLAG_PERIODO x datas", await query(c, "PLD_Horario", [col("p", "FLAG_PERIODO"), agg("p", "DATA", 3), agg("p", "DATA", 4), agg("p", "PLD_HORA", 5)])); } catch (e) { console.log("flag falhou", e.message.slice(0, 300)); }
   }
-  let queried = 0;
-  for (const sec of ex?.sections ?? []) {
-    console.log(`\n-- página: ${sec.displayName}`);
-    for (const vc of sec.visualContainers ?? []) {
-      let cfg;
-      try {
-        cfg = JSON.parse(vc.config);
-      } catch {
-        continue;
-      }
-      const sv = cfg.singleVisual;
-      if (!sv?.prototypeQuery) continue;
-      const q = sv.prototypeQuery;
-      const sel = (q.Select ?? []).map((s) => s.Name).join(" | ");
-      const title = sv.vcObjects?.title?.[0]?.properties?.text?.expr?.Literal?.Value ?? "";
-      console.log(`   [${sv.visualType}] ${title} :: ${sel}`);
-      if (queried >= 14 || ["slicer", "card", "textbox", "image", "shape"].includes(sv.visualType) && (q.Select ?? []).length < 1) continue;
-      const body = {
-        version: "1.0.0",
-        queries: [
-          {
-            Query: {
-              Commands: [
-                {
-                  SemanticQueryDataShapeCommand: {
-                    Query: q,
-                    Binding: { Primary: { Groupings: [{ Projections: q.Select.map((_, i) => i) }] }, DataReduction: { DataVolume: 3, Primary: { Top: { Count: 2000 } } }, Version: 1 },
-                    ExecutionMetricsKind: 1,
-                  },
-                },
-              ],
-            },
-            QueryId: "",
-            ApplicationContext: { DatasetId: model.dbName, Sources: [{ ReportId: ex.report?.objectId ?? "", VisualId: cfg.name }] },
-          },
-        ],
-        cancelQueries: [],
-        modelId: model.id,
-      };
-      try {
-        await sleep(400);
-        const res = await j(`${api}/public/reports/querydata?synchronous=true`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        queried++;
-        const d = decodeDsr(res.results?.[0]?.result);
-        console.log(`      linhas: ${d.rows.length}${d.restart ? " (há mais)" : ""} · colunas: ${d.cols.join(" | ")}`);
-        for (const row of d.rows.slice(0, 3)) console.log("        ", JSON.stringify(row).slice(0, 300));
-        if (d.rows.length > 3) console.log("         …", JSON.stringify(d.rows[d.rows.length - 1]).slice(0, 300));
-      } catch (e) {
-        console.log("      consulta falhou:", e.message.slice(0, 200));
-      }
-    }
-  }
+  try { show("faixa de datas", await query(c, "PLD_Horario", [agg("p", "DATA", 3), agg("p", "DATA", 4), agg("p", "HORA", 3), agg("p", "HORA", 4)])); } catch (e) { console.log("faixa falhou", e.message.slice(0, 300)); }
+  try { show("submercados", await query(c, "PLD_Horario", [col("p", "ID_SUBMERCADO"), col("p", "SUBMERCADO")])); } catch (e) { console.log("sub falhou", e.message.slice(0, 300)); }
+  try {
+    const out = await query(c, "PLD_Horario", [col("p", "DATA"), col("p", "HORA"), col("p", "ID_SUBMERCADO"), agg("p", "PLD_HORA", 3), agg("p", "PLD_HORA", 4)], [ge("p", "DATA", `datetime'${since}T00:00:00'`)]);
+    show(`bruto desde ${since}`, out, 6);
+    const days = {};
+    for (const row of out.d.rows) { const d = new Date(row[0]).toISOString().slice(0, 10); days[d] = (days[d] ?? 0) + 1; }
+    console.log("   linhas por dia:", JSON.stringify(days), "· min≠max:", out.d.rows.filter((x) => Number(x[3]) !== Number(x[4])).length);
+    if (name === "dia") console.log("FIXTURE_JSON " + JSON.stringify(out.res.results[0].result).slice(0, 40000));
+  } catch (e) { console.log("bruto falhou", e.message.slice(0, 300)); }
 }
