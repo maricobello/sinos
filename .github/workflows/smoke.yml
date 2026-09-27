@@ -53,7 +53,7 @@ jobs:
                       yield from walk(v, f"{where}[{i}]")
           sims = list(walk(d))
           for w, why in sims:
-              print("   SIMULADO:", w, "—", str(why)[:160])
+              print("   SIMULADO:", w, "—", str(why)[:400])
           if sims:
               open("simulated.flag", "a").write(path + "\n")
           if path == "/api/status":
@@ -63,3 +63,19 @@ jobs:
           done
           if [ -f simulated.flag ]; then echo "::error::dado simulado em produção: $(tr '\n' ' ' < simulated.flag)"; fail=1; fi
           exit $fail
+      - name: Iara (Groq online?)
+        if: always()
+        run: |
+          curl -s --max-time 30 "$URL/api/assistente" > iara.json || true
+          python3 - <<'PY'
+          import json
+          try:
+              d = json.load(open("iara.json"))
+          except Exception as e:
+              print("::warning::/api/assistente não respondeu JSON:", e); raise SystemExit(0)
+          print("configurada:", d.get("configured"), "| online:", d.get("online"), "| modelo:", d.get("model"), "| transcrição:", d.get("sttModel"), "| latência ms:", d.get("latencyMs"), "| código de acesso:", d.get("accessCodeRequired"))
+          if not d.get("configured"):
+              print("::notice::Iara desligada no servidor: cadastre GROQ_API_KEY (Sensitive) na Vercel")
+          elif not d.get("online"):
+              print("::warning::Groq fora do ar ou chave recusada:", d.get("error"))
+          PY
