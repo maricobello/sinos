@@ -141,6 +141,7 @@ export function anonymize(text, authors) {
   return t;
 }
 
+/** @type {[string, RegExp][]} */
 export const THEMES = [
   [
     "PLD, CMO e formação de preço",

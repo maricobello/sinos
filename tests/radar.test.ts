@@ -1,6 +1,5 @@
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-// @ts-expect-error script .mjs sem tipos
 import { anonymize, buildRadar, normalizeUrl, parseChat, renderMarkdown, txtFromZip } from "../scripts/radar-comunidade.mjs";
 
 const CHAT = [

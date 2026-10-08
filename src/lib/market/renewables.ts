@@ -1,5 +1,5 @@
 import { brtDate, brtHour, brtToUtc } from "../sources/time";
-import { SUBS, type Sub } from "../sources/types";
+import { SUBS, type DailySubPanel, type Sub } from "../sources/types";
 
 /**
  * Curtailment (constrained-off) de eólica e solar e carga líquida, a partir das bases abertas do
@@ -107,6 +107,27 @@ export function balanceRowFrom(o: Record<string, unknown>): BalanceRow | null {
     solar: num(o.val_gersolar),
     carga: num(o.val_carga),
     intercambio: num(o.val_intercambio),
+  };
+}
+
+/**
+ * Corte diário (MWh, eólica + solar) por submercado, para a camada de confiança detectar quando o
+ * ONS republica um dia passado (ex.: depois de contestações). Dia sem as 48 meias horas fica nulo.
+ */
+export function curtailmentDailyPanel(rows: CurtRow[]): DailySubPanel {
+  const acc = new Map<string, { v: Record<Sub, number>; slots: Set<number> }>();
+  for (const r of rows) {
+    const d = brtDate(r.ts);
+    const a = acc.get(d) ?? { v: Object.fromEntries(SUBS.map((s) => [s, 0])) as Record<Sub, number>, slots: new Set<number>() };
+    a.slots.add(r.ts);
+    if (r.razao) a.v[r.sub] += Math.max(0, r.apurada ?? 0) * 0.5;
+    acc.set(d, a);
+  }
+  const dates = [...acc.keys()].sort();
+  return {
+    dates,
+    values: Object.fromEntries(SUBS.map((s) => [s, dates.map((d) => (acc.get(d)!.slots.size >= 48 ? acc.get(d)!.v[s] : null))])) as Record<Sub, (number | null)[]>,
+    unit: "MWh",
   };
 }
 

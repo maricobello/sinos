@@ -32,7 +32,7 @@ export async function probeAll(): Promise<Record<SourceId, SourceResult<unknown>
     fetchEarDaily(30),
     fetchEnaDaily(30),
     fetchLoadHourly(10),
-    fetchCurtailment(3),
+    fetchCurtailment(12), // 12 dias: a camada de confiança compara os últimos 10 fechados
     fetchBalance(3),
     fetchEuPrices(3, { store: euZoneStore, probe: true }),
     fetchUkMid(2),
@@ -55,7 +55,7 @@ export async function probeOne(id: SourceId): Promise<SourceResult<unknown>> {
     ons_ear: () => fetchEarDaily(30),
     ons_ena: () => fetchEnaDaily(30),
     ons_carga: () => fetchLoadHourly(10),
-    ons_curtailment: () => fetchCurtailment(3),
+    ons_curtailment: () => fetchCurtailment(12),
     ons_balanco: () => fetchBalance(3),
     energy_charts: () => fetchEuPrices(3, { store: euZoneStore, probe: true }),
     elexon_mid: () => fetchUkMid(2),

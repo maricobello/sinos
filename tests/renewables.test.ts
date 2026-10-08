@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fx from "./fixtures/ons-renewables.json";
 import {
   balanceRowFrom,
+  curtailmentDailyPanel,
   curtailmentSummary,
   curtailmentVsFloor,
   curtRowFrom,
@@ -10,6 +11,7 @@ import {
   wallClockToTs,
   type CurtRow,
 } from "@/lib/market/renewables";
+import { digestSource } from "@/lib/audit/trust";
 import { monthsFor } from "@/lib/sources/ons-renewables";
 import { brtToUtc } from "@/lib/sources/time";
 
@@ -102,5 +104,21 @@ describe("curtailment × PLD no piso", () => {
     const pld = { ts: [t0, t0 + 3600_000, t0 + 7200_000], values: { SE: nulls(), S: nulls(), N: nulls(), NE: [57.31, 120, 57.31] } };
     // hora t0: 200 MWh a 57,31 · t0+1h: 150 MWh a 120 · t0+2h: 5 MWh (abaixo do mínimo, mas entra no valor)
     expect(curtailmentVsFloor(rows, pld, 57.31, "NE")).toEqual({ sub: "NE", hours: 2, atFloor: 1, sharePct: 50, mwhPriced: 355, avgPld: Math.round(((200 * 57.31 + 150 * 120 + 5 * 57.31) / 355) * 100) / 100, valueBRL: Math.round(200 * 57.31 + 150 * 120 + 5 * 57.31) });
+  });
+});
+
+describe("corte na camada de confiança", () => {
+  it("vira painel diário (MWh por submercado) e só fecha o dia com as 48 meias horas", () => {
+    const t0 = brtToUtc(2026, 10, 4, 0);
+    const rows: CurtRow[] = [];
+    for (let k = 0; k < 48; k++) rows.push({ sub: "NE", tech: "eolica", ts: t0 + k * 1800_000, geracao: 100, disp: 200, ref: 150, refFinal: 150, apurada: k === 20 ? 50 : 0, razao: k === 20 ? "ENE" : null });
+    rows.push({ sub: "NE", tech: "solar", ts: t0 + 86400_000, geracao: 0, disp: 0, ref: 10, refFinal: 10, apurada: 10, razao: "CNF" }); // dia seguinte incompleto
+    const p = curtailmentDailyPanel(rows);
+    expect(p.dates).toEqual(["2026-10-04", "2026-10-05"]);
+    expect(p.values.NE).toEqual([25, null]);
+    expect(p.values.SE).toEqual([0, null]);
+    const d = digestSource("ons_curtailment", rows, brtToUtc(2026, 10, 8, 12), 10);
+    expect(d.find((x) => x.date === "2026-10-04")).toMatchObject({ expected: 4, present: 4 });
+    expect(d.find((x) => x.date === "2026-10-05")).toMatchObject({ present: 0 });
   });
 });
