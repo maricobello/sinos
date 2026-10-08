@@ -299,6 +299,15 @@ e rode o `.bat` (ou `node coletor-ccee.mjs --csv pld.csv`): ele envia só as lin
 **Exportação CSV** (`?format=csv`): `/api/previsao?sub=SE` (curva horária, banda e quantis),
 `/api/arbitragem?sub=SE` (despacho ótimo de 72 h) e `/api/pld-mensal` (PLD médio mês × submercado).
 
+## Radar semanal da comunidade
+
+`node scripts/radar-comunidade.mjs "WhatsApp Chat - Comunidade.zip"` lê a exportação do grupo (o .zip ou o
+`_chat.txt`) e grava em `docs/radar/AAAA-MM-DD.md` os temas da semana, os links compartilhados (marcando os
+novos em relação aos radares anteriores) e as perguntas em aberto. O resumo é anônimo: tira nomes, telefones,
+e-mails, menções, apresentações pessoais e links de redes sociais e reuniões. Roda só no seu computador; os
+radares e as exportações ficam fora do git porque o repositório é público. `--desde AAAA-MM-DD` muda a janela
+(padrão: 7 dias até a última mensagem).
+
 ## Deploy na Vercel
 
 1. Em [vercel.com/new](https://vercel.com/new), importe o repositório `maricobello/sinos`.
