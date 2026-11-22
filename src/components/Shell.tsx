@@ -5,81 +5,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import {
-  ArrowLeftRight,
-  BatteryCharging,
-  BookOpen,
-  CalendarRange,
-  CloudSun,
-  Flame,
-  Gauge,
-  Globe,
-  Handshake,
-  Menu,
-  Monitor,
-  Moon,
-  ScrollText,
-  ShieldCheck,
-  Sun,
-  TrendingUp,
-  Wallet,
-  Waypoints,
-  Wind,
-  X,
-  Zap,
-  SolarPanel,
-  Receipt,
-} from "lucide-react";
+import { BatteryCharging, ChevronRight, Menu, Monitor, Moon, Sun, X } from "lucide-react";
 import type { BrasilResp } from "@/lib/apiTypes";
 import { useAsset } from "@/lib/asset";
 import { setAppearance, setUiMode, useAppearance, useUiMode, type Appearance, type UiMode } from "@/lib/theme";
 import { useApi } from "@/lib/useApi";
+import { moduloDe, NAV, type Modulo } from "@/lib/modules";
+import { BrandMark, ModuleTile } from "./Brand";
 import { IaraButton, IaraPanel } from "./assistant/Iara";
 import { MotionRoot } from "./motion";
 import { LIVE_STYLE, SourcesPill, sourceTally, useLiveSources } from "./Sources";
 import { Delta, sourceState, StatusTag } from "./ui";
 
-const NAV: { group: string; items: { href: string; label: string; Icon: typeof Gauge }[] }[] = [
-  {
-    group: "Mercado",
-    items: [
-      { href: "/", label: "Sala de Comando", Icon: Gauge },
-      { href: "/sin", label: "SIN · Brasil", Icon: Zap },
-      { href: "/rede", label: "Rede elétrica", Icon: Waypoints },
-      { href: "/termicas", label: "Térmicas & encargos", Icon: Flame },
-      { href: "/renovaveis", label: "Renováveis & corte", Icon: Wind },
-      { href: "/previsao", label: "Previsão", Icon: TrendingUp },
-      { href: "/planejamento", label: "Planejamento (SDDP)", Icon: CalendarRange },
-      { href: "/mercado-livre", label: "Mercado livre", Icon: Handshake },
-      { href: "/arbitragem", label: "Arbitragem", Icon: ArrowLeftRight },
-    ],
-  },
-  {
-    group: "Ativos",
-    items: [
-      { href: "/bess", label: "BESS", Icon: BatteryCharging },
-      { href: "/carteira", label: "Carteira", Icon: Wallet },
-      { href: "/gd", label: "Geração distribuída", Icon: SolarPanel },
-      { href: "/tarifas", label: "Tarifas & tributos", Icon: Receipt },
-    ],
-  },
-  {
-    group: "Contexto",
-    items: [
-      { href: "/global", label: "Mercados globais", Icon: Globe },
-      { href: "/clima", label: "Clima & hidrologia", Icon: CloudSun },
-    ],
-  },
-  {
-    group: "Sistema",
-    items: [
-      { href: "/auditoria", label: "Agente auditor", Icon: ShieldCheck },
-      { href: "/modelos", label: "Modelos & APIs", Icon: BookOpen },
-      { href: "/metodologia", label: "Metodologia", Icon: ScrollText },
-    ],
-  },
-];
-const ALL = NAV.flatMap((g) => g.items);
+
 
 /** Fontes de dados em uma linha, ao vivo (o detalhe fica em "APIs conectadas" e no Agente auditor). */
 function SystemStatus({ onNavigate }: { onNavigate?: () => void }) {
@@ -183,21 +121,29 @@ function NavList({ current, onNavigate }: { current?: string; onNavigate?: () =>
     <nav className="flex flex-col gap-5 px-3 py-2" aria-label="Navegação principal">
       {NAV.map((g) => (
         <div key={g.group}>
-          <div className="nav-group px-3 pb-1 text-[12px] font-medium text-muted">{g.group}</div>
+          <div className="nav-group px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted/80">{g.group}</div>
           <ul className="flex flex-col gap-0.5">
-            {g.items.map(({ href, label, Icon }) => {
+            {g.items.map((m: Modulo) => {
+              const { href, label, Icon } = m;
               const active = current === href;
               return (
                 <li key={href} className="relative">
-                  {active ? <motion.span layoutId="nav-active" className="absolute inset-0 rounded-[10px] bg-surface-3/80" transition={{ type: "spring", stiffness: 520, damping: 42 }} /> : null}
+                  {active ? <motion.span layoutId="nav-active" className="rail-item-active absolute inset-0 rounded-[10px]" transition={{ type: "spring", stiffness: 520, damping: 42 }} /> : null}
+                  {active ? <motion.span layoutId="nav-bar" className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#60a5fa]" transition={{ type: "spring", stiffness: 520, damping: 42 }} aria-hidden /> : null}
                   <Link
                     href={href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
-                    className={`relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-[14px] transition-colors lg:min-h-9 ${active ? "font-medium text-ink" : "text-ink-2 hover:bg-surface-2"}`}
+                    className={`group relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-[14px] transition-colors lg:min-h-9 ${active ? "font-medium text-ink" : "text-ink-2 hover:bg-surface-2 hover:text-ink"}`}
                   >
-                    <Icon size={18} strokeWidth={1.75} className={active ? "text-accent" : "text-muted"} aria-hidden />
-                    {label}
+                    {active ? (
+                      <ModuleTile Icon={Icon} tile={m.tile} size={24} icon={14} />
+                    ) : (
+                      <span className="grid h-6 w-6 shrink-0 place-items-center">
+                        <Icon size={17} strokeWidth={1.75} className="text-muted transition-colors group-hover:text-ink-2" aria-hidden />
+                      </span>
+                    )}
+                    <span className="min-w-0 truncate">{label}</span>
                   </Link>
                 </li>
               );
@@ -212,13 +158,11 @@ function NavList({ current, onNavigate }: { current?: string; onNavigate?: () =>
 function Sidebar({ current, iara, onIara, onNavigate, onClose }: { current?: string; iara: boolean; onIara: () => void; onNavigate?: () => void; onClose?: () => void }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 shrink-0 items-center gap-2.5 px-6">
-        <span className="grid h-7 w-7 place-items-center rounded-[8px] bg-accent-fill text-on-accent" aria-hidden>
-          <Zap size={16} fill="currentColor" strokeWidth={1.5} />
-        </span>
+      <div className="flex h-16 shrink-0 items-center gap-3 px-5">
+        <BrandMark size={30} />
         <span className="leading-none">
-          <span className="block text-[17px] font-semibold tracking-[-0.01em] text-ink">SIN OS</span>
-          <span className="terminal-only mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted">Energy Arbitrage Terminal</span>
+          <span className="block text-[17px] font-semibold tracking-[-0.02em] text-ink">SIN OS</span>
+          <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">Energy Intelligence</span>
         </span>
         {onClose ? (
           <button className="ml-auto grid h-11 w-11 place-items-center rounded-full text-muted hover:bg-surface-2" onClick={onClose} aria-label="Fechar menu">
@@ -233,7 +177,9 @@ function Sidebar({ current, iara, onIara, onNavigate, onClose }: { current?: str
         <NavList current={current} onNavigate={onNavigate} />
       </div>
       <div className="flex shrink-0 flex-col gap-2 px-3 pb-4 pt-3">
-        <SystemStatus onNavigate={onNavigate} />
+        <div className="rail-status">
+          <SystemStatus onNavigate={onNavigate} />
+        </div>
         <VisualSwitch />
         <AppearanceSwitch />
       </div>
@@ -335,11 +281,32 @@ function TerminalBar() {
   );
 }
 
+/** Barra superior do visual moderno (desktop): trilha Grupo › Módulo, estado das fontes e relógio. */
+function TopBar({ current }: { current?: Modulo & { group: string } }) {
+  return (
+    <div className="modern-only glass sticky top-0 z-20 hidden h-14 items-center gap-4 border-b border-line px-6 lg:flex lg:px-10">
+      <nav aria-label="Trilha" className="flex min-w-0 items-center gap-1.5 text-[13px]">
+        <span className="text-muted">{current?.group ?? "SIN OS"}</span>
+        <ChevronRight size={14} className="shrink-0 text-muted/70" aria-hidden />
+        <span className="truncate font-medium text-ink">{current?.label ?? "Início"}</span>
+      </nav>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="w-[230px]">
+          <SystemStatus />
+        </div>
+        <span className="hidden h-8 items-center rounded-full border border-line bg-surface px-3 xl:inline-flex">
+          <Clock />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [iara, setIara] = useState(false);
-  const current = ALL.find((n) => (n.href === "/" ? path === "/" : path.startsWith(n.href)));
+  const current = moduloDe(path);
   const toggleIara = () => setIara((v) => !v);
   // outras telas abrem a Iara (ex.: "Perguntar à Iara" na tela de GD)
   useEffect(() => {
@@ -360,7 +327,7 @@ export function Shell({ children }: { children: ReactNode }) {
     <MotionRoot>
       <div className="flex min-h-screen">
         {/* barra lateral fixa (≥ lg) */}
-        <aside className="sidebar-rail sticky top-0 hidden h-screen w-[248px] shrink-0 lg:block" aria-label="Menu">
+        <aside className="rail sidebar-rail sticky top-0 hidden h-screen w-[256px] shrink-0 border-r border-black/5 lg:block" aria-label="Menu">
           <Sidebar current={current?.href} iara={iara} onIara={toggleIara} />
         </aside>
 
@@ -372,7 +339,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <motion.aside
                 key="drawer"
                 aria-label="Menu"
-                className="fixed inset-y-0 left-0 z-40 w-[288px] rounded-r-[22px] bg-page shadow-2xl lg:hidden"
+                className="rail fixed inset-y-0 left-0 z-40 w-[288px] overflow-hidden rounded-r-[22px] bg-page shadow-2xl lg:hidden"
                 initial={{ x: -300 }}
                 animate={{ x: 0 }}
                 exit={{ x: -300 }}
@@ -399,11 +366,15 @@ export function Shell({ children }: { children: ReactNode }) {
             <button className="grid h-11 w-11 place-items-center rounded-full text-ink hover:bg-surface-2" onClick={() => setOpen(true)} aria-label="Abrir menu">
               <Menu size={21} />
             </button>
+            <span className={`shrink-0 transition-opacity duration-200 ${scrolled ? "opacity-0" : "opacity-100"}`} aria-hidden>
+              <BrandMark size={24} />
+            </span>
             <span className={`min-w-0 flex-1 truncate text-[17px] font-semibold text-ink transition-opacity duration-200 ${scrolled ? "opacity-100" : "opacity-0"}`} aria-hidden={!scrolled}>
               {current?.label ?? "SIN OS"}
             </span>
             <IaraButton open={iara} onToggle={toggleIara} />
           </header>
+          <TopBar current={current} />
           <TerminalBar />
           <main className="mx-auto flex w-full max-w-[1440px] min-w-0 flex-1 flex-col px-4 pb-10 pt-5 sm:px-6 lg:px-10 lg:pt-9">{children}</main>
           <LoadingVeil />

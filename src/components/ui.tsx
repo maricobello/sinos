@@ -2,7 +2,10 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, CircleAlert, CircleCheck, CircleMinus, CircleX, Info, TriangleAlert } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { moduloDe } from "@/lib/modules";
+import { EmptyArt, HeroArt, ModuleTile } from "./Brand";
 import { themedColor } from "@/lib/chart";
 import { ago, dateTime } from "@/lib/fmt";
 import { useScheme } from "@/lib/theme";
@@ -57,7 +60,7 @@ export function Panel({
     <section className={`card flex min-w-0 flex-col ${className}`}>
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-5 pb-2 pt-4">
         <div className="min-w-0">
-          <h2 className="panel-title text-[15px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
+          <h2 className="panel-title text-[15px] font-semibold tracking-[-0.015em] text-ink">{title}</h2>
           {subtitle ? <p className="mt-0.5 text-[13px] leading-snug text-muted">{subtitle}</p> : null}
         </div>
         {right ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{right}</div> : null}
@@ -335,8 +338,9 @@ export function Loading({ label = "Carregando…", height = 240 }: { label?: str
 
 export function Empty({ label = "Sem dados no período.", height = 120 }: { label?: string; height?: number }) {
   return (
-    <div className="flex items-center justify-center rounded-xl bg-surface-2 px-4 text-center text-[13px] text-muted" style={{ height }}>
-      {label}
+    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface-2/50 px-4 text-center text-[13px] text-muted" style={{ minHeight: height }}>
+      {height >= 110 ? <EmptyArt size={height >= 180 ? 56 : 40} /> : null}
+      <span className="max-w-md">{label}</span>
     </div>
   );
 }
@@ -396,7 +400,7 @@ export function Kpi({
 }) {
   const warn = state && state !== "LIVE" && state !== "FALLBACK" ? STATE[state] : null;
   return (
-    <div className="card flex min-w-0 flex-col px-4 pb-3 pt-3.5" title={[source, detail, at ? `atualizado ${dateTime(at)}` : null].filter(Boolean).join(" · ") || undefined}>
+    <div className="card kpi-card flex min-w-0 flex-col px-4 pb-3 pt-3.5" style={swatch ? ({ "--kpi-color": swatch } as CSSProperties) : undefined} title={[source, detail, at ? `atualizado ${dateTime(at)}` : null].filter(Boolean).join(" · ") || undefined}>
       <div className="flex items-center gap-1.5 text-[13px] font-medium text-muted">
         {swatch ? <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: swatch }} aria-hidden /> : null}
         <span className="truncate">{label}</span>
@@ -446,7 +450,7 @@ export function Stat({
   swatch?: string;
 }) {
   return (
-    <div className="card flex min-w-0 flex-col gap-1 px-4 py-3.5">
+    <div className="card kpi-card flex min-w-0 flex-col gap-1 px-4 py-3.5" style={swatch ? ({ "--kpi-color": swatch } as CSSProperties) : undefined}>
       <div className="flex items-center gap-1.5 text-[13px] font-medium text-muted">
         {swatch ? <span className="inline-block h-2 w-2 rounded-full" style={{ background: swatch }} aria-hidden /> : null}
         <span className="truncate">{label}</span>
@@ -516,9 +520,9 @@ export function Table({
     <ScrollX label={label}>
       <table className="w-full border-collapse text-[13px]">
         <thead>
-          <tr className="border-b border-line">
+          <tr className="border-b border-line-strong">
             {head.map((h, i) => (
-              <th key={i} className={`whitespace-nowrap px-3 py-2 text-[12px] font-medium text-muted ${i === 0 ? pin : ""}`} style={{ textAlign: align?.[i] ?? "left" }}>
+              <th key={i} className={`whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted ${i === 0 ? pin : ""}`} style={{ textAlign: align?.[i] ?? "left" }}>
                 {h}
               </th>
             ))}
@@ -526,7 +530,7 @@ export function Table({
         </thead>
         <tbody className="tnum">
           {rows.map((r, i) => (
-            <tr key={i} className={`border-b border-line transition-colors last:border-0 hover:bg-surface-2/60 ${rowClass?.(i) ?? ""}`}>
+            <tr key={i} className={`border-b border-line transition-colors last:border-0 hover:bg-accent/[0.045] ${rowClass?.(i) ?? ""}`}>
               {r.map((c, j) => (
                 <td key={j} className={`whitespace-nowrap px-3 text-ink-2 ${dense ? "py-2" : "py-2.5"} ${j === 0 ? pin : ""}`} style={{ textAlign: align?.[j] ?? "left" }}>
                   {c}
@@ -592,7 +596,7 @@ export function Segmented<T extends string>({
 }) {
   const id = useId();
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-[10px] bg-surface-2 p-[3px]">
+    <div role="radiogroup" aria-label={label} className="inline-flex max-w-full flex-wrap rounded-[10px] border border-line bg-surface-2 p-[3px]">
       {options.map((o) => {
         const active = value === o.value;
         return (
@@ -605,7 +609,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={`relative inline-flex min-h-11 items-center justify-center rounded-[8px] font-medium transition-colors ${size === "xs" ? "px-2.5 text-[12px] sm:min-h-7" : "px-3 text-[13px] sm:min-h-8"} ${active ? "text-ink" : "text-muted hover:text-ink"}`}
           >
-            {active ? <motion.span layoutId={`seg-${id}`} className="absolute inset-0 rounded-[8px] bg-seg-thumb shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.04)]" transition={{ type: "spring", stiffness: 500, damping: 40 }} /> : null}
+            {active ? <motion.span layoutId={`seg-${id}`} className="absolute inset-0 rounded-[8px] bg-seg-thumb shadow-[0_1px_2px_rgba(15,23,42,0.12),0_2px_8px_-2px_rgba(15,23,42,0.12)] ring-1 ring-black/[0.04]" transition={{ type: "spring", stiffness: 500, damping: 40 }} /> : null}
             <span className="relative inline-flex items-center gap-1">{o.label}</span>
           </button>
         );
@@ -633,10 +637,10 @@ export function Button({
 }) {
   const cls =
     variant === "primary"
-      ? "bg-accent-fill text-on-accent hover:brightness-110"
+      ? "bg-[linear-gradient(180deg,#3b82f6,#2563eb)] text-on-accent shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_6px_16px_-6px_rgba(37,99,235,0.7)] hover:brightness-110"
       : variant === "ghost"
         ? "text-accent hover:bg-accent/10"
-        : "bg-surface-2 text-ink hover:bg-surface-3";
+        : "border border-line bg-surface text-ink shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:bg-surface-2";
   return (
     <motion.button
       type={type}
@@ -651,14 +655,26 @@ export function Button({
   );
 }
 
+/**
+ * Cabeçalho da página: azulejo com o ícone do módulo, grupo (Mercado, Ativos…), título, subtítulo e,
+ * no desktop, a arte de rede elétrica na cor do módulo ao fundo.
+ */
 export function PageHeader({ title, subtitle, right }: { title: string; subtitle?: ReactNode; right?: ReactNode }) {
+  const mod = moduloDe(usePathname());
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-      <div className="min-w-0">
-        <h1 className="page-title text-[28px] font-bold leading-tight tracking-[-0.025em] text-ink sm:text-[32px]">{title}</h1>
-        {subtitle ? <p className="mt-1 max-w-3xl text-[15px] leading-snug text-muted">{subtitle}</p> : null}
+    <div className="relative">
+      {mod ? <HeroArt color={mod.tile[1]} className="pointer-events-none absolute -top-8 right-0 hidden h-[140px] w-[460px] xl:block" /> : null}
+      <div className="relative flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 items-start gap-4">
+          {mod ? <ModuleTile Icon={mod.Icon} tile={mod.tile} size={48} icon={24} className="mt-1 hidden sm:grid" /> : null}
+          <div className="min-w-0">
+            {mod ? <div className="eyebrow mb-1 uppercase tracking-[0.14em] text-[11px] font-semibold text-accent">{mod.group}</div> : null}
+            <h1 className="page-title text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[32px]">{title}</h1>
+            {subtitle ? <p className="mt-1.5 max-w-2xl text-[15px] leading-snug text-muted">{subtitle}</p> : null}
+          </div>
+        </div>
+        {right ? <div className="flex flex-wrap items-center gap-2">{right}</div> : null}
       </div>
-      {right ? <div className="flex flex-wrap items-center gap-2">{right}</div> : null}
     </div>
   );
 }

@@ -1,28 +1,30 @@
 @import "tailwindcss";
 
 /*
- * SIN OS — sistema visual calmo, no espírito do Apple HIG:
- *  - deferência: o dado é o protagonista; superfícies em camadas, sem bordas nem enfeites;
- *  - clareza: tipografia do sistema (SF Pro nos aparelhos Apple), poucos tamanhos, números tabulares;
+ * SIN OS — sistema visual de "centro de operações":
+ *  - o dado é o protagonista; cartões brancos (ou grafite) com borda fina e sombra curta sobre um fundo
+ *    frio com malha de pontos e um brilho azul discreto no topo;
+ *  - marca: barra lateral sempre escura (azul-noite), acento azul-elétrico, ícone de módulo em cada tela;
+ *  - tipografia Geist (igual em todo sistema operacional), números tabulares;
  *  - cor só com significado (submercado, alta/baixa, alerta), com variantes para claro e escuro.
  * O tema segue o sistema operacional; `data-theme` no <html> força claro ou escuro.
  */
 :root {
   color-scheme: light;
-  --page: #f5f5f7;
+  --page: #f3f5f9;
   --surface: #ffffff;
-  --surface-2: #f2f2f5;
-  --surface-3: #e8e8ed;
-  --border: rgba(0, 0, 0, 0.07);
-  --border-strong: rgba(0, 0, 0, 0.13);
-  --grid: #ececf0;
-  --axis: #d2d2d7;
-  --ink: #1d1d1f;
-  --ink-2: #3a3a3c;
-  --muted: #6e6e73;
-  --accent: #0066cc;
-  --accent-fill: #0071e3;
-  --accent-2: #08739a;
+  --surface-2: #f1f4f9;
+  --surface-3: #e4e9f1;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --grid: #eceff5;
+  --axis: #d3d9e3;
+  --ink: #0b1220;
+  --ink-2: #364152;
+  --muted: #5d6b7e;
+  --accent: #1d4fd8;
+  --accent-fill: #2563eb;
+  --accent-2: #0e7490;
   --good: #167532;
   --warning: #9a5400;
   --serious: #b83200;
@@ -33,70 +35,82 @@
   --sub-s: #e67700;
   --sub-ne: #2fa84f;
   --sub-n: #af52de;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 18px rgba(0, 0, 0, 0.05);
-  --glass: rgba(245, 245, 247, 0.78);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
+  --shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.06), 0 18px 40px -16px rgba(15, 23, 42, 0.22);
+  --glass: rgba(243, 245, 249, 0.8);
+  --glow: rgba(37, 99, 235, 0.1);
+  --glow-2: rgba(14, 165, 233, 0.08);
+  --dots: rgba(15, 23, 42, 0.055);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --page: #000000;
-    --surface: #1c1c1e;
-    --surface-2: #2c2c2e;
-    --surface-3: #3a3a3c;
-    --border: rgba(255, 255, 255, 0.08);
-    --border-strong: rgba(255, 255, 255, 0.15);
-    --grid: #28282a;
-    --axis: #3a3a3c;
-    --ink: #f5f5f7;
-    --ink-2: #d1d1d6;
-    --muted: #98989d;
-    --accent: #409cff;
-    --accent-fill: #0071e3;
-    --accent-2: #64d2ff;
+    --page: #070a10;
+    --surface: #0e131b;
+    --surface-2: #161c27;
+    --surface-3: #212a39;
+    --border: rgba(148, 163, 184, 0.12);
+    --border-strong: rgba(148, 163, 184, 0.2);
+    --grid: #1a2130;
+    --axis: #2a3446;
+    --ink: #eef2f8;
+    --ink-2: #c5cddb;
+    --muted: #8d98ab;
+    --accent: #6aa6ff;
+    --accent-fill: #2563eb;
+    --accent-2: #5eead4;
     --good: #30d158;
     --warning: #ffd60a;
     --serious: #ff9f0a;
     --critical: #ff6961;
     --on-accent: #ffffff;
-    --seg-thumb: #636366;
+    --seg-thumb: #2a3446;
     --sub-se: #0a84ff;
     --sub-s: #ff9f0a;
     --sub-ne: #30d158;
     --sub-n: #bf5af2;
-    --shadow: none;
-    --glass: rgba(0, 0, 0, 0.72);
+    --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+    --shadow-lift: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 20px 44px -18px rgba(0, 0, 0, 0.9);
+    --glass: rgba(7, 10, 16, 0.78);
+    --glow: rgba(37, 99, 235, 0.16);
+    --glow-2: rgba(20, 184, 166, 0.07);
+    --dots: rgba(148, 163, 184, 0.07);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #000000;
-  --surface: #1c1c1e;
-  --surface-2: #2c2c2e;
-  --surface-3: #3a3a3c;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.15);
-  --grid: #28282a;
-  --axis: #3a3a3c;
-  --ink: #f5f5f7;
-  --ink-2: #d1d1d6;
-  --muted: #98989d;
-  --accent: #409cff;
-  --accent-fill: #0071e3;
-  --accent-2: #64d2ff;
+  --page: #070a10;
+  --surface: #0e131b;
+  --surface-2: #161c27;
+  --surface-3: #212a39;
+  --border: rgba(148, 163, 184, 0.12);
+  --border-strong: rgba(148, 163, 184, 0.2);
+  --grid: #1a2130;
+  --axis: #2a3446;
+  --ink: #eef2f8;
+  --ink-2: #c5cddb;
+  --muted: #8d98ab;
+  --accent: #6aa6ff;
+  --accent-fill: #2563eb;
+  --accent-2: #5eead4;
   --good: #30d158;
   --warning: #ffd60a;
   --serious: #ff9f0a;
   --critical: #ff6961;
   --on-accent: #ffffff;
-  --seg-thumb: #636366;
+  --seg-thumb: #2a3446;
   --sub-se: #0a84ff;
   --sub-s: #ff9f0a;
   --sub-ne: #30d158;
   --sub-n: #bf5af2;
-  --shadow: none;
-  --glass: rgba(0, 0, 0, 0.72);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  --shadow-lift: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 20px 44px -18px rgba(0, 0, 0, 0.9);
+  --glass: rgba(7, 10, 16, 0.78);
+  --glow: rgba(37, 99, 235, 0.16);
+  --glow-2: rgba(20, 184, 166, 0.07);
+  --dots: rgba(148, 163, 184, 0.07);
 }
 
 @theme inline {
@@ -118,9 +132,9 @@
   --color-critical: var(--critical);
   --color-on-accent: var(--on-accent);
   --color-seg-thumb: var(--seg-thumb);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-geist-sans), system-ui, "Segoe UI", sans-serif;
-  /* números alinhados na fonte do sistema (como o SF Pro tabular); mono de verdade só para código */
-  --font-mono: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-geist-sans), system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+  /* números alinhados na própria Geist (tabular); mono de verdade só para código */
+  --font-mono: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-code: "SF Mono", var(--font-geist-mono), ui-monospace, Menlo, monospace;
 }
 
@@ -130,11 +144,25 @@ body {
   color: var(--ink);
 }
 
+/* fundo: brilho azul no topo + malha de pontos que some para baixo (só no visual moderno) */
+html:not([data-ui="terminal"]) body {
+  background-color: var(--page);
+  background-image:
+    radial-gradient(1100px 420px at 70% -120px, var(--glow), transparent 70%),
+    radial-gradient(700px 360px at 10% -80px, var(--glow-2), transparent 70%),
+    radial-gradient(var(--dots) 1px, transparent 1.2px);
+  background-size: 100% 100%, 100% 100%, 22px 22px;
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-attachment: fixed;
+  -webkit-mask-image: none;
+}
+
 body {
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.45;
-  letter-spacing: -0.005em;
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -166,8 +194,103 @@ body {
 
 .card {
   background: var(--surface);
-  border-radius: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
+}
+
+/* cartão de indicador: filete colorido no topo (cor da entidade) e leve elevação no hover */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--kpi-color, linear-gradient(90deg, var(--accent-fill), var(--accent-2)));
+  opacity: 0.9;
+}
+.kpi-card:hover {
+  box-shadow: var(--shadow-lift);
+}
+
+/* azulejo do ícone do módulo (cabeçalho da página e painéis) */
+.icon-tile {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #fff;
+  background: linear-gradient(140deg, var(--tile-a, #3b82f6), var(--tile-b, #1d4ed8));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 8px 20px -8px var(--tile-b, #1d4ed8);
+}
+
+/*
+ * Barra lateral da marca: sempre azul-noite (no claro e no escuro). Redefine os tokens dentro dela,
+ * então os componentes de dentro (Iara, status, seletores) já saem com as cores certas.
+ */
+html:not([data-ui="terminal"]) .rail {
+  color-scheme: dark;
+  --surface: #0f1625;
+  --surface-2: #162033;
+  --surface-3: #1e2a41;
+  --border: rgba(148, 163, 184, 0.12);
+  --border-strong: rgba(148, 163, 184, 0.2);
+  --ink: #f1f5fb;
+  --ink-2: #c9d2e0;
+  --muted: #8f9bb0;
+  --accent: #7db4ff;
+  --seg-thumb: #2a3a57;
+  --good: #30d158;
+  --warning: #ffd60a;
+  --critical: #ff6961;
+  --serious: #ff9f0a;
+  color: var(--ink);
+  background:
+    radial-gradient(420px 260px at 0% 0%, rgba(37, 99, 235, 0.22), transparent 70%),
+    radial-gradient(360px 300px at 100% 100%, rgba(20, 184, 166, 0.1), transparent 70%),
+    linear-gradient(180deg, #0b1220, #0a0f1a);
+}
+html[data-ui="terminal"] .rail-item-active {
+  background: var(--surface-3);
+}
+html[data-ui="terminal"] .hero-art {
+  display: none;
+}
+html:not([data-ui="terminal"]) .rail-item-active {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.24), rgba(59, 130, 246, 0.06));
+  box-shadow: inset 0 0 0 1px rgba(125, 180, 255, 0.14);
+}
+
+/* arte do cabeçalho: linhas de rede/onda em traço fino, à direita do título */
+.hero-art {
+  color: var(--accent-fill);
+  opacity: 0.5;
+  -webkit-mask-image: linear-gradient(90deg, transparent 10%, #000 60%);
+  mask-image: linear-gradient(90deg, transparent 10%, #000 60%);
+}
+
+/* campos de formulário: borda fina e anel de foco na cor do acento (todas as telas) */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
+  border: 1px solid var(--border);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea):hover {
+  border-color: var(--border-strong);
+}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea):focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* no desktop moderno o estado das fontes fica na barra superior; a lateral não repete */
+@media (min-width: 1024px) {
+  html:not([data-ui="terminal"]) .rail .rail-status {
+    display: none;
+  }
 }
 
 .glass {
@@ -332,6 +455,11 @@ html:root[data-ui="terminal"] {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+/* barra superior do visual moderno: some no Terminal (que tem a faixa de cotações) */
+[data-ui="terminal"] .modern-only {
+  display: none !important;
 }
 
 /* faixa de cotações (topo) e marca do Terminal: só existem nesse visual */

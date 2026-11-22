@@ -5,10 +5,10 @@
  * da Apple; a cor segue a entidade (SE sempre azul etc.), nunca o ranking.
  */
 const DARK = {
-  surface: "#1c1c1e",
-  surface2: "#2c2c2e",
-  grid: "#28282a",
-  axis: "#3a3a3c",
+  surface: "#0e131b",
+  surface2: "#161c27",
+  grid: "#1a2130",
+  axis: "#2a3446",
   ink: "#f5f5f7",
   ink2: "#d1d1d6",
   muted: "#98989d",
@@ -23,7 +23,7 @@ const DARK = {
   seq: ["#0a2240", "#0d3566", "#114b8f", "#1a66bd", "#4a90e2", "#8ab8f0", "#cfe3fb"],
   // divergente azul ↔ vermelho com ponto médio neutro
   div: ["#2563b5", "#4d8fe0", "#9bc0ee", "#48484a", "#f2a19c", "#ec6a62", "#c03c35"],
-  tooltip: "rgba(44,44,46,0.94)",
+  tooltip: "rgba(18,24,35,0.96)",
   pointer: "rgba(152,152,157,0.55)",
   accentSoft: "rgba(10,132,255,0.14)",
   peakSoft: "rgba(255,214,10,0.05)",
@@ -33,9 +33,9 @@ const DARK = {
 
 const LIGHT: typeof DARK = {
   surface: "#ffffff",
-  surface2: "#f2f2f5",
-  grid: "#ececf0",
-  axis: "#d2d2d7",
+  surface2: "#f1f4f9",
+  grid: "#eceff5",
+  axis: "#d3d9e3",
   ink: "#1d1d1f",
   ink2: "#3a3a3c",
   muted: "#6e6e73",
@@ -127,7 +127,7 @@ export const axisTimeLabel = (v: number) => {
 
 export const tooltipTime = (v: number) => fmtHour.format(new Date(v)) + "h";
 
-export const CHART_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', Geist, system-ui, sans-serif";
+export const CHART_FONT = "GeistSans, Geist, -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
 
 export function baseOption() {
   return {
@@ -142,7 +142,7 @@ export function baseOption() {
       backgroundColor: C.tooltip,
       borderWidth: 0,
       padding: [8, 12],
-      extraCssText: "border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,0.18);backdrop-filter:blur(14px);",
+      extraCssText: "border-radius:12px;border:1px solid rgba(148,163,184,0.18);box-shadow:0 12px 32px -8px rgba(2,6,23,0.35);backdrop-filter:blur(14px);",
       textStyle: { color: C.ink, fontSize: 12, fontFamily: CHART_FONT },
       axisPointer: { type: "line", lineStyle: { color: C.pointer, width: 1 } },
       confine: true,
