@@ -1,3 +1,4 @@
+import type { Refino } from "../audit/forecast-history";
 import { adaptiveConformal, conformalQuantile } from "../quant/conformal";
 import { fitGarch } from "../quant/garch";
 import { fitHmm, hmmStateLabel, regimeForecast } from "../quant/hmm";
@@ -145,6 +146,8 @@ export interface ForecastResult {
     fit?: { dayQTarget: number; dayQSim: number; tvReal: number; tvSim: number; depReal: number; depSim: number } | null;
   } | null;
   lear: { activeFeatures: number; nTrain: number; calibrationDays: number };
+  /** Refino pelo histórico das previsões publicadas (viés por hora e largura da banda), quando avaliado. */
+  refino?: Refino;
   /** Qualidade da série usada: dias na janela recente (até 90) e quantos foram interpolados por falta na fonte. */
   dataQuality: { windowDays: number; imputedDays: number; recentImputed: string[] };
   warnings: string[];
@@ -154,6 +157,8 @@ export interface ForecastInternal extends ForecastResult {
   paths: number[][]; // trajetórias MC em R$/MWh (M × H)
   publishedAhead: { date: string; prices: number[] }[]; // dias futuros já publicados (ex.: D+1)
   realizedDaily: number[][]; // últimos dias realizados (matriz dia×24h) — base do backtest de P&L realizado
+  /** Ponto e banda do modelo antes do refino pelo histórico (só quando o refino mudou algo). */
+  refinoBase?: { point: number[]; lo: number[]; hi: number[] };
 }
 
 const clipPld = (v: number) => Math.min(PLD_LIMITS.maxHourly, Math.max(PLD_LIMITS.min, v));
@@ -596,7 +601,8 @@ export function buildForecast(panel: SubPanel, sub: Sub, horizonDays = 7, nPaths
 }
 
 export function publicForecast(f: ForecastInternal): ForecastResult {
-  const { paths: _p, publishedAhead: _a, realizedDaily: _r, ...rest } = f;
+  const { paths: _p, publishedAhead: _a, realizedDaily: _r, refinoBase: _b, ...rest } = f;
+  void _b;
   void _p;
   void _a;
   void _r;

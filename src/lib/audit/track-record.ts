@@ -24,6 +24,10 @@ export interface LoggedForecast {
   /** Faixa 5–95% da média do dia nas trajetórias do Monte Carlo. */
   mcLo: number | null;
   mcHi: number | null;
+  /** Quando o refino pelo histórico estava ligado: ponto e banda do modelo antes do refino (para aprender sem realimentar). */
+  base?: number[];
+  baseLo?: number[];
+  baseHi?: number[];
 }
 
 export const TRACK_MIN_DAYS = 14;
@@ -31,7 +35,7 @@ export const TRACK_MAX_DAYS = 90;
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-export function snapshotForecast(fc: Pick<ForecastInternal, "firstForecastDate" | "generatedAt" | "lastObservedDate" | "horizon" | "paths">): LoggedForecast {
+export function snapshotForecast(fc: Pick<ForecastInternal, "firstForecastDate" | "generatedAt" | "lastObservedDate" | "horizon" | "paths" | "refinoBase">): LoggedForecast {
   const day = fc.horizon.dailyMean[0];
   const dms = fc.paths.length >= 50 ? fc.paths.map((p) => mean(p.slice(0, 24))) : [];
   return {
@@ -45,6 +49,7 @@ export function snapshotForecast(fc: Pick<ForecastInternal, "firstForecastDate" 
     dayHi: r2(day.p95),
     mcLo: dms.length ? r2(quantile(dms, 0.05)) : null,
     mcHi: dms.length ? r2(quantile(dms, 0.95)) : null,
+    ...(fc.refinoBase ? { base: fc.refinoBase.point.slice(0, 24).map(r2), baseLo: fc.refinoBase.lo.slice(0, 24).map(r2), baseHi: fc.refinoBase.hi.slice(0, 24).map(r2) } : {}),
   };
 }
 

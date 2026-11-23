@@ -8,6 +8,7 @@ import { band, baseOption, C, categoryAxis, line, SUB_COLOR, timeAxis, valueAxis
 import { brl, dayLabel, num, pct } from "@/lib/fmt";
 import { SUBS, type Sub } from "@/lib/sources/types";
 import { useApi } from "@/lib/useApi";
+import { HistoricoPrevisao } from "./Historico";
 
 const SUB_OPTS = SUBS.map((s) => ({ value: s, label: s }));
 
@@ -179,6 +180,8 @@ export default function PrevisaoPage() {
           )}
         </Panel>
       </div>
+
+      <HistoricoPrevisao sub={sub} />
 
       <Disclosure title="Detalhes do modelo" hint="regimes, volatilidade, saltos e quantis">
         {bt ? (
