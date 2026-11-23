@@ -167,7 +167,7 @@ export function HistoricoPrevisao({ sub }: { sub: Sub }) {
             </div>
             <div className="min-w-0">
               <h3 className="mb-1 text-[14px] font-semibold text-ink">Onde o modelo erra: viés por hora</h3>
-              <p className="text-[12px] text-muted">Laranja: previsão abaixo do realizado; azul: acima. Verde: a correção que o refino aprendeu.</p>
+              <p className="text-[12px] text-muted">Laranja: previsão abaixo do realizado; azul: acima. Verde: a correção que o refino aprendeu (mediana dos erros: um viés que vem de poucos dias de pico não vira correção).</p>
               {hr ? <EChart option={hr} height={260} label="Viés por hora do dia e correção aprendida" /> : null}
             </div>
           </div>

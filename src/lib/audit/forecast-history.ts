@@ -130,7 +130,8 @@ export function resumir(dias: DiaConferido[], janela = 30): ResumoHistorico {
     })),
     movel: dias.map((d, i) => {
       const xs = dias.slice(Math.max(0, i + 1 - janela), i + 1);
-      return { date: d.date, skill: skillDe(xs), mae: r2(soma((x) => x.mae, xs) / xs.length), coberturaHora: r4(soma((x) => x.hourCoverage, xs) / xs.length) };
+      // com menos de 7 dias (ou dias colados no piso, ingênuo ≈ 0) o skill explode: fica em branco
+      return { date: d.date, skill: xs.length >= Math.min(7, janela) ? skillDe(xs) : null, mae: r2(soma((x) => x.mae, xs) / xs.length), coberturaHora: r4(soma((x) => x.hourCoverage, xs) / xs.length) };
     }),
     porHora: Array.from({ length: 24 }, (_, h) => ({
       hora: h,
